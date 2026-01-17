@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Baltic QMS Portal
  * Description: Staff-only QMS portal for recording MCS evidence (projects + records) with DOC export and print-to-PDF.
- * Version: 2.2.5
+ * Version: 2.2.6
  * Author: Baltic Electric
  */
 
 if (!defined('ABSPATH')) { exit; }
 
 class BE_QMS_Portal {
-  const VERSION = '2.2.5';
+  const VERSION = '2.2.6';
   const CPT_RECORD = 'be_qms_record';
   const CPT_PROJECT = 'be_qms_install'; // keep CPT key for backwards compatibility
   const TAX_RECORD_TYPE = 'be_qms_record_type';
@@ -63,6 +63,40 @@ class BE_QMS_Portal {
     if (!$post) return false;
     $content = (string) $post->post_content;
     return (strpos($content, '[be_qms_portal') !== false) || (strpos($content, '[bqms_portal') !== false) || (strpos($content, '[bqms_dashboard') !== false);
+  }
+
+  private static function normalize_date_input($value) {
+    $value = trim((string) $value);
+    if ($value === '') {
+      return '';
+    }
+
+    $formats = ['d/m/Y', 'Y-m-d', 'd-m-Y', 'Y/m/d'];
+    foreach ($formats as $format) {
+      $parsed = DateTime::createFromFormat($format, $value);
+      if ($parsed instanceof DateTime) {
+        return $parsed->format('Y-m-d');
+      }
+    }
+
+    return sanitize_text_field($value);
+  }
+
+  private static function format_date_for_display($value) {
+    $value = trim((string) $value);
+    if ($value === '') {
+      return '';
+    }
+
+    $formats = ['Y-m-d', 'd/m/Y', 'd-m-Y', 'Y/m/d'];
+    foreach ($formats as $format) {
+      $parsed = DateTime::createFromFormat($format, $value);
+      if ($parsed instanceof DateTime) {
+        return $parsed->format('d/m/Y');
+      }
+    }
+
+    return $value;
   }
 
   public static function enqueue_assets() {
@@ -173,6 +207,13 @@ class BE_QMS_Portal {
 .be-qms-input::placeholder, .be-qms-textarea::placeholder{ color: rgba(148,163,184,.60); }
 .be-qms-input:focus, .be-qms-textarea:focus, .be-qms-select:focus{ border-color:rgba(52,211,153,.70); box-shadow:0 0 0 4px rgba(16,185,129,.18); background:rgba(2,6,23,.70); }
 .be-qms-textarea{ min-height:110px; resize:vertical; }
+.be-qms-date{
+  background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='white'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Crect%20x='3'%20y='4'%20width='18'%20height='18'%20rx='2'%20ry='2'/%3E%3Cline%20x1='16'%20y1='2'%20x2='16'%20y2='6'/%3E%3Cline%20x1='8'%20y1='2'%20x2='8'%20y2='6'/%3E%3Cline%20x1='3'%20y1='10'%20x2='21'%20y2='10'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 12px center;
+  background-size:16px 16px;
+  padding-right:38px;
+}
 
 .be-qms-grid{ display:grid; grid-template-columns:repeat(12,1fr); gap:10px; }
 .be-qms-col-6{ grid-column:span 6; }
@@ -220,7 +261,7 @@ CSS;
     $js = <<<'JS'
 jQuery(function($){
   $('.be-qms-date').each(function(){
-    try{ $(this).datepicker({ dateFormat: 'yy-mm-dd' }); }catch(e){}
+    try{ $(this).datepicker({ dateFormat: 'dd/mm/yy' }); }catch(e){}
   });
 });
 JS;
@@ -694,7 +735,8 @@ JS;
         $linked_project = (int) get_post_meta($pid, self::META_PROJECT_LINK, true);
 
         echo '<tr>';
-        echo '<td>'.esc_html(get_post_meta($pid, '_be_qms_record_date', true) ?: get_the_date('Y-m-d')).'</td>';
+        $record_date = get_post_meta($pid, '_be_qms_record_date', true) ?: get_the_date('Y-m-d');
+        echo '<td>'.esc_html(self::format_date_for_display($record_date)).'</td>';
 
         if ($linked_project) {
           $pr_title = get_the_title($linked_project);
@@ -795,7 +837,7 @@ JS;
     echo '</select></label></div>';
 
     echo '<div class="be-qms-col-6"><label><strong>Date</strong><br/>';
-    echo '<input class="be-qms-input be-qms-date" type="text" name="record_date" value="'.esc_attr($date).'" required /></label></div>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="record_date" value="'.esc_attr(self::format_date_for_display($date)).'" placeholder="DD/MM/YYYY" required /></label></div>';
 
     echo '<div class="be-qms-col-12"><label><strong>Title</strong><br/>';
     echo '<input class="be-qms-input" type="text" name="title" value="'.esc_attr($title).'" placeholder="e.g. Internal Review – Q1 2026" required /></label></div>';
@@ -936,13 +978,13 @@ JS;
     echo '<div class="be-qms-grid">';
 
     echo '<div class="be-qms-col-6"><label><strong>Customer Name</strong><br/>';
-    echo '<input class="be-qms-input" type="text" name="customer_name" value="'.esc_attr($customer_name).'" required /></label></div>';
+    echo '<input class="be-qms-input" type="text" name="customer_name" value="'.esc_attr($customer_name).'" /></label></div>';
 
     echo '<div class="be-qms-col-6"><label><strong>Address</strong><br/>';
     echo '<textarea class="be-qms-textarea" name="address">'.esc_textarea($address).'</textarea></label></div>';
 
     echo '<div class="be-qms-col-6"><label><strong>Date of Complaint</strong><br/>';
-    echo '<input class="be-qms-input be-qms-date" type="text" name="complaint_date" value="'.esc_attr($complaint_date).'" required /></label></div>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="complaint_date" value="'.esc_attr(self::format_date_for_display($complaint_date)).'" placeholder="DD/MM/YYYY" /></label></div>';
     echo '<div class="be-qms-col-6"></div>';
 
     echo '<div class="be-qms-col-6"><label><strong>Contact&#039;s Name</strong><br/>';
@@ -960,7 +1002,7 @@ JS;
     echo '<div class="be-qms-col-12"><hr style="margin:8px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
 
     echo '<div class="be-qms-col-12"><label><strong>Nature of Complaint</strong><br/>';
-    echo '<input class="be-qms-input" type="text" name="nature" value="'.esc_attr($nature).'" required /></label></div>';
+    echo '<input class="be-qms-input" type="text" name="nature" value="'.esc_attr($nature).'" /></label></div>';
 
     echo '<div class="be-qms-col-12"><label><strong>Outcome</strong><br/>';
     echo '<input class="be-qms-input" type="text" name="outcome" value="'.esc_attr($outcome).'" /></label></div>';
@@ -1007,7 +1049,7 @@ JS;
     echo '<input class="be-qms-input" type="text" name="reported_by" value="'.esc_attr($reported_by).'" /></label></div>';
 
     echo '<div class="be-qms-col-6"><label><strong>Date Closed</strong><br/>';
-    echo '<input class="be-qms-input be-qms-date" type="text" name="date_closed" value="'.esc_attr($date_closed).'" /></label></div>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="date_closed" value="'.esc_attr(self::format_date_for_display($date_closed)).'" placeholder="DD/MM/YYYY" /></label></div>';
 
     echo '<div class="be-qms-col-6"><label><strong>Title</strong><br/>';
     echo '<input class="be-qms-input" type="text" name="reported_title" value="'.esc_attr($reported_title).'" /></label></div>';
@@ -1099,7 +1141,8 @@ JS;
 
     echo '<div class="be-qms-row" style="justify-content:space-between">';
     echo '<div><h3 style="margin:0">R06 - Customer Complaints</h3>';
-    echo '<div class="be-qms-muted">'.esc_html($complaint_date ?: get_the_date('Y-m-d',$id)).'</div>';
+    $display_complaint_date = $complaint_date ?: get_the_date('Y-m-d', $id);
+    echo '<div class="be-qms-muted">'.esc_html(self::format_date_for_display($display_complaint_date)).'</div>';
 
     if ($linked_project) {
       $pt = get_the_title($linked_project);
@@ -1119,7 +1162,7 @@ JS;
     echo '<div class="be-qms-grid">';
     echo '<div class="be-qms-col-6"><strong>Customer Name</strong><br/>'.esc_html($customer_name).'</div>';
     echo '<div class="be-qms-col-6"><strong>Address</strong><br/>'.wpautop(esc_html($address)).'</div>';
-    echo '<div class="be-qms-col-6"><strong>Date of Complaint</strong><br/>'.esc_html($complaint_date).'</div>';
+    echo '<div class="be-qms-col-6"><strong>Date of Complaint</strong><br/>'.esc_html(self::format_date_for_display($complaint_date)).'</div>';
     echo '<div class="be-qms-col-6"><strong>Contact&#039;s Name</strong><br/>'.esc_html($contact_name).'</div>';
     echo '<div class="be-qms-col-6"><strong>E-mail</strong><br/>'.esc_html($contact_email).'</div>';
     echo '<div class="be-qms-col-6"><strong>Telephone</strong><br/>'.esc_html($contact_phone).'</div>';
@@ -1139,7 +1182,7 @@ JS;
     echo '<div class="be-qms-col-12"><strong>Is Customer satisfied with result?</strong><br/>'.esc_html($customer_satisfied ? ucfirst($customer_satisfied) : '—').'</div>';
     echo '<div class="be-qms-col-12"><hr style="margin:12px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
     echo '<div class="be-qms-col-6"><strong>Reported By</strong><br/>'.esc_html($reported_by).'</div>';
-    echo '<div class="be-qms-col-6"><strong>Date Closed</strong><br/>'.esc_html($date_closed).'</div>';
+    echo '<div class="be-qms-col-6"><strong>Date Closed</strong><br/>'.esc_html(self::format_date_for_display($date_closed)).'</div>';
     echo '<div class="be-qms-col-6"><strong>Title</strong><br/>'.esc_html($reported_title).'</div>';
     echo '</div>';
 
@@ -1175,7 +1218,7 @@ JS;
     $defs = self::record_type_definitions();
     $type_name = ($type_slug && isset($defs[$type_slug])) ? $defs[$type_slug] : (($terms && !is_wp_error($terms)) ? $terms[0]->name : '-');
 
-    $record_date = get_post_meta($id, '_be_qms_record_date', true) ?: get_the_date('Y-m-d',$id);
+    $record_date = get_post_meta($id, '_be_qms_record_date', true) ?: get_the_date('Y-m-d', $id);
     $details = (string) get_post_meta($id, '_be_qms_details', true);
     $actions = (string) get_post_meta($id, '_be_qms_actions', true);
     $linked_project = (int) get_post_meta($id, self::META_PROJECT_LINK, true);
@@ -1188,7 +1231,7 @@ JS;
 
     echo '<div class="be-qms-row" style="justify-content:space-between">';
     echo '<div><h3 style="margin:0">'.esc_html($p->post_title).'</h3>';
-    echo '<div class="be-qms-muted">'.esc_html($type_name).' • '.esc_html($record_date).'</div>';
+    echo '<div class="be-qms-muted">'.esc_html($type_name).' • '.esc_html(self::format_date_for_display($record_date)).'</div>';
 
     if ($linked_project) {
       $pt = get_the_title($linked_project);
@@ -1267,7 +1310,8 @@ JS;
         echo '<tr>';
         echo '<td><a class="be-qms-link" href="'.$view_url.'">'.esc_html($item).'</a></td>';
         echo '<td>'.esc_html($serial ?: '—').'</td>';
-        echo '<td>'.esc_html($next_due ?: '—').'</td>';
+        $display_next_due = $next_due ? self::format_date_for_display($next_due) : '—';
+        echo '<td>'.esc_html($display_next_due).'</td>';
         echo '<td class="be-qms-row">'
           .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$view_url.'">View</a>'
           .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a>'
@@ -1343,13 +1387,13 @@ JS;
     echo '<input class="be-qms-input" type="text" name="tool_description" value="'.esc_attr($description).'" /></label></div>';
 
     echo '<div class="be-qms-col-4"><label><strong>Date Purchased</strong><br/>';
-    echo '<input class="be-qms-input be-qms-date" type="text" name="tool_date_purchased" value="'.esc_attr($date_purchased).'" /></label></div>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="tool_date_purchased" value="'.esc_attr(self::format_date_for_display($date_purchased)).'" placeholder="DD/MM/YYYY" /></label></div>';
 
     echo '<div class="be-qms-col-4"><label><strong>Date Calibrated</strong><br/>';
-    echo '<input class="be-qms-input be-qms-date" type="text" name="tool_date_calibrated" value="'.esc_attr($date_calibrated).'" /></label></div>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="tool_date_calibrated" value="'.esc_attr(self::format_date_for_display($date_calibrated)).'" placeholder="DD/MM/YYYY" /></label></div>';
 
     echo '<div class="be-qms-col-4"><label><strong>Next Calibration Date</strong><br/>';
-    echo '<input class="be-qms-input be-qms-date" type="text" name="tool_next_due" value="'.esc_attr($next_due).'" /></label></div>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="tool_next_due" value="'.esc_attr(self::format_date_for_display($next_due)).'" placeholder="DD/MM/YYYY" /></label></div>';
 
     echo '<div class="be-qms-col-12"><label><strong>Upload evidence</strong> <span class="be-qms-muted">(optional)</span><br/>';
     echo '<input type="file" name="attachments[]" multiple /></label></div>';
@@ -1418,9 +1462,12 @@ JS;
     echo '<tr><th>Serial</th><td>'.esc_html($serial ?: '—').'</td></tr>';
     echo '<tr><th>Requirements</th><td>'.esc_html($requirements ?: '—').'</td></tr>';
     echo '<tr><th>Description</th><td>'.esc_html($description ?: '—').'</td></tr>';
-    echo '<tr><th>Date Purchased</th><td>'.esc_html($date_purchased ?: '—').'</td></tr>';
-    echo '<tr><th>Date Calibrated</th><td>'.esc_html($date_calibrated ?: '—').'</td></tr>';
-    echo '<tr><th>Next Due</th><td>'.esc_html($next_due ?: '—').'</td></tr>';
+    $display_purchased = $date_purchased ? self::format_date_for_display($date_purchased) : '—';
+    $display_calibrated = $date_calibrated ? self::format_date_for_display($date_calibrated) : '—';
+    $display_next_due = $next_due ? self::format_date_for_display($next_due) : '—';
+    echo '<tr><th>Date Purchased</th><td>'.esc_html($display_purchased).'</td></tr>';
+    echo '<tr><th>Date Calibrated</th><td>'.esc_html($display_calibrated).'</td></tr>';
+    echo '<tr><th>Next Due</th><td>'.esc_html($display_next_due).'</td></tr>';
     echo '</table>';
 
     echo '<h4 style="margin-top:14px">Attachments</h4>';
@@ -1480,129 +1527,95 @@ JS;
 
   private static function render_r07_employee_list() {
     echo '<div class="be-qms-row" style="justify-content:space-between">';
-    echo '<div><strong>R07 Personal Skills &amp; Training Matrix</strong> <span class="be-qms-muted">(employee-first)</span></div>';
+    echo '<div>'
+      .'<h3 style="margin:0">Personal Skills &amp; Training Matrix</h3>'
+      .'<div class="be-qms-muted">Your existing employees/courses are displayed below. Click “View” to manage an employee’s skill records.</div>'
+      .'</div>';
     $add = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'new_employee'], self::portal_url()));
     echo '<a class="be-qms-btn" href="'.$add.'">Add New</a>';
     echo '</div>';
 
-    $employees = get_posts([
-      'post_type' => self::CPT_EMPLOYEE,
+    $skills = get_posts([
+      'post_type' => self::CPT_TRAINING,
       'post_status' => 'publish',
-      'numberposts' => 200,
-      'orderby' => 'title',
-      'order' => 'ASC',
+      'numberposts' => 500,
+      'orderby' => 'date',
+      'order' => 'DESC',
     ]);
 
-    echo '<table class="be-qms-table">';
-    echo '<thead><tr><th>Employee</th><th>Qualifications</th><th>Next renewal</th><th>Actions</th></tr></thead><tbody>';
+    if ($skills) {
+      $employee_titles = [];
+      foreach ($skills as $skill) {
+        $eid = (int) get_post_meta($skill->ID, self::META_EMPLOYEE_LINK, true);
+        if ($eid && !isset($employee_titles[$eid])) {
+          $employee_titles[$eid] = get_the_title($eid);
+        }
+      }
 
-    if (!$employees) {
-      echo '<tr><td colspan="4" class="be-qms-muted">No employees yet. Click “Add New”.</td></tr>';
+      usort($skills, function($a, $b) use ($employee_titles) {
+        $a_emp = (int) get_post_meta($a->ID, self::META_EMPLOYEE_LINK, true);
+        $b_emp = (int) get_post_meta($b->ID, self::META_EMPLOYEE_LINK, true);
+        $a_name = $employee_titles[$a_emp] ?? '';
+        $b_name = $employee_titles[$b_emp] ?? '';
+        $cmp = strcasecmp($a_name, $b_name);
+        if ($cmp !== 0) {
+          return $cmp;
+        }
+        $a_course = get_post_meta($a->ID, '_be_qms_training_course', true) ?: $a->post_title;
+        $b_course = get_post_meta($b->ID, '_be_qms_training_course', true) ?: $b->post_title;
+        return strcasecmp($a_course, $b_course);
+      });
+    }
+
+    echo '<table class="be-qms-table" style="margin-top:12px">';
+    echo '<thead><tr><th>Employee Name</th><th>Course Name</th><th>Renewal Date</th><th>Options</th></tr></thead><tbody>';
+
+    if (!$skills) {
+      echo '<tr><td colspan="4" class="be-qms-muted">No training records yet. Click “Add New” to create an employee first.</td></tr>';
     } else {
-      for ($i=0; $i<count($employees); $i++) {
-        $e = $employees[$i];
-        $eid = (int)$e->ID;
+      $last_emp = 0;
+      foreach ($skills as $skill) {
+        $sid = (int) $skill->ID;
+        $eid = (int) get_post_meta($sid, self::META_EMPLOYEE_LINK, true);
+        $emp_name = $eid ? get_the_title($eid) : '';
+        $course = get_post_meta($sid, '_be_qms_training_course', true) ?: $skill->post_title;
+        $renew = get_post_meta($sid, '_be_qms_training_renewal', true);
 
-        // Find next renewal date for this employee
-        $next = self::r07_get_next_renewal($eid);
-        $qualifications = self::r07_get_employee_qualifications($eid);
+        $emp_cell = '';
+        if ($eid && $eid !== $last_emp) {
+          $emp_view = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'employee','id'=>$eid], self::portal_url()));
+          $emp_edit = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'edit_employee','id'=>$eid], self::portal_url()));
+          $emp_del  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=employee&id='.$eid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$eid)));
+          $emp_cell = '<a class="be-qms-link" href="'.$emp_view.'">'.esc_html($emp_name).'</a>'
+            .'<div class="be-qms-muted" style="margin-top:6px">'
+            .'<a class="be-qms-link" href="'.$emp_edit.'" style="font-weight:700">Edit</a>'
+            .' &nbsp;·&nbsp; '
+            .'<a class="be-qms-link" href="'.$emp_del.'" style="color:#fecaca" onclick="return confirm(\'Delete this employee and their training records?\')">Remove</a>'
+            .'</div>';
+        }
 
-        $view = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'employee','id'=>$eid], self::portal_url()));
-        $edit = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'edit_employee','id'=>$eid], self::portal_url()));
-        $del  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=employee&id='.$eid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$eid)));
+        $skill_edit = $eid
+          ? esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'edit_skill','emp'=>$eid,'id'=>$sid], self::portal_url()))
+          : '';
+        $skill_del  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=training&id='.$sid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$sid)));
+
+        $display_renew = $renew ? self::format_date_for_display($renew) : '—';
 
         echo '<tr>';
-        echo '<td><a class="be-qms-link" href="'.$view.'">'.esc_html($e->post_title).'</a></td>';
-        echo '<td>'.$qualifications.'</td>';
-        echo '<td>'.esc_html($next ?: '—').'</td>';
+        echo '<td>'.($emp_cell ?: '<span class="be-qms-muted">—</span>').'</td>';
+        echo '<td>'.esc_html($course).'</td>';
+        echo '<td>'.esc_html($display_renew).'</td>';
         echo '<td class="be-qms-row">'
-          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$view.'">View</a>'
-          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$edit.'">Edit</a>'
-          .'<a class="be-qms-btn be-qms-btn-danger" href="'.$del.'" onclick="return confirm(\'Delete this employee and their training records?\')">Delete</a>'
+          .($skill_edit ? '<a class="be-qms-btn be-qms-btn-secondary" href="'.$skill_edit.'">Edit</a>' : '')
+          .'<a class="be-qms-btn be-qms-btn-danger" href="'.$skill_del.'" onclick="return confirm(\'Remove this skill record?\')">Remove</a>'
           .'</td>';
         echo '</tr>';
+
+        $last_emp = $eid;
       }
     }
 
     echo '</tbody></table>';
-  }
-
-  private static function r07_get_skill_count($employee_id) {
-    $ids = get_posts([
-      'post_type' => self::CPT_TRAINING,
-      'post_status' => 'publish',
-      'numberposts' => -1,
-      'fields' => 'ids',
-      'meta_key' => self::META_EMPLOYEE_LINK,
-      'meta_value' => $employee_id,
-    ]);
-    return is_array($ids) ? count($ids) : 0;
-  }
-
-  private static function r07_get_employee_qualifications($employee_id) {
-    $skills = get_posts([
-      'post_type' => self::CPT_TRAINING,
-      'post_status' => 'publish',
-      'numberposts' => 200,
-      'orderby' => 'date',
-      'order' => 'DESC',
-      'meta_key' => self::META_EMPLOYEE_LINK,
-      'meta_value' => $employee_id,
-    ]);
-
-    if (!$skills) {
-      return '<span class="be-qms-muted">—</span>';
-    }
-
-    $items = [];
-    foreach ($skills as $skill) {
-      $sid = (int) $skill->ID;
-      $course = get_post_meta($sid, '_be_qms_training_course', true) ?: $skill->post_title;
-      $renew = get_post_meta($sid, '_be_qms_training_renewal', true);
-      $label = $renew ? ($course . ' (renew ' . $renew . ')') : $course;
-      $items[] = esc_html($label);
-    }
-
-    $html = '<ul style="margin:0;padding-left:18px">';
-    foreach ($items as $item) {
-      $html .= '<li>'.$item.'</li>';
-    }
-    $html .= '</ul>';
-
-    return $html;
-  }
-
-  private static function r07_get_next_renewal($employee_id) {
-    $q = new WP_Query([
-      'post_type' => self::CPT_TRAINING,
-      'post_status' => 'publish',
-      'posts_per_page' => 50,
-      'orderby' => 'meta_value',
-      'order' => 'ASC',
-      'meta_key' => '_be_qms_training_renewal',
-      'meta_query' => [[
-        'key' => self::META_EMPLOYEE_LINK,
-        'value' => $employee_id,
-        'compare' => '=',
-      ],[
-        'key' => '_be_qms_training_renewal',
-        'compare' => 'EXISTS',
-      ]],
-    ]);
-
-    $best = '';
-    if ($q->have_posts()) {
-      while ($q->have_posts()) {
-        $q->the_post();
-        $rid = get_the_ID();
-        $renew = get_post_meta($rid, '_be_qms_training_renewal', true);
-        if ($renew && (!$best or $renew < $best)) {
-          $best = $renew;
-        }
-      }
-      wp_reset_postdata();
-    }
-    return $best;
   }
 
   private static function render_r07_employee_form($id) {
@@ -1675,8 +1688,10 @@ JS;
         $del  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=training&id='.$sid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$sid)));
         echo '<tr>';
         echo '<td>'.esc_html($course ?: $s->post_title).'</td>';
-        echo '<td>'.esc_html($date_course ?: '—').'</td>';
-        echo '<td>'.esc_html($renew ?: '—').'</td>';
+        $display_course_date = $date_course ? self::format_date_for_display($date_course) : '—';
+        $display_renew = $renew ? self::format_date_for_display($renew) : '—';
+        echo '<td>'.esc_html($display_course_date).'</td>';
+        echo '<td>'.esc_html($display_renew).'</td>';
         echo '<td class="be-qms-row">'
           .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$edit.'">Edit</a>'
           .'<a class="be-qms-btn be-qms-btn-danger" href="'.$del.'" onclick="return confirm(\'Delete this skill record?\')">Delete</a>'
@@ -1733,10 +1748,10 @@ JS;
     echo '<input class="be-qms-input" type="text" name="course_name" value="'.esc_attr($course).'" required /></label></div>';
 
     echo '<div class="be-qms-col-6"><label><strong>Date of course</strong><br/>';
-    echo '<input class="be-qms-input be-qms-date" type="text" name="date_course" value="'.esc_attr($date_course).'" placeholder="YYYY-MM-DD" /></label></div>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="date_course" value="'.esc_attr(self::format_date_for_display($date_course)).'" placeholder="DD/MM/YYYY" /></label></div>';
 
     echo '<div class="be-qms-col-6"><label><strong>Renewal date</strong><br/>';
-    echo '<input class="be-qms-input be-qms-date" type="text" name="renewal_date" value="'.esc_attr($renew).'" placeholder="YYYY-MM-DD" /></label></div>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="renewal_date" value="'.esc_attr(self::format_date_for_display($renew)).'" placeholder="DD/MM/YYYY" /></label></div>';
 
     echo '<div class="be-qms-col-12"><label><strong>Description / certificates</strong><br/>';
     echo '<textarea class="be-qms-textarea" name="description">'.esc_textarea($desc).'</textarea></label></div>';
@@ -1798,8 +1813,8 @@ JS;
     $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
     $employee_id = isset($_POST['employee_id']) ? (int) $_POST['employee_id'] : 0;
     $course = sanitize_text_field($_POST['course_name'] ?? '');
-    $date_course = sanitize_text_field($_POST['date_course'] ?? '');
-    $renew = sanitize_text_field($_POST['renewal_date'] ?? '');
+    $date_course = self::normalize_date_input($_POST['date_course'] ?? '');
+    $renew = self::normalize_date_input($_POST['renewal_date'] ?? '');
     $desc = wp_kses_post($_POST['description'] ?? '');
 
     if (!$employee_id) wp_die('Missing employee.');
@@ -1855,7 +1870,7 @@ JS;
 
     $type = isset($_POST['record_type']) ? sanitize_key($_POST['record_type']) : '';
     $title = isset($_POST['title']) ? sanitize_text_field($_POST['title']) : '';
-    $date = isset($_POST['record_date']) ? sanitize_text_field($_POST['record_date']) : '';
+    $date = isset($_POST['record_date']) ? self::normalize_date_input($_POST['record_date']) : '';
     $details = isset($_POST['details']) ? wp_kses_post($_POST['details']) : '';
     $actions = isset($_POST['actions']) ? wp_kses_post($_POST['actions']) : '';
     $project_id = isset($_POST['project_id']) ? (int) $_POST['project_id'] : 0;
@@ -1869,9 +1884,9 @@ JS;
       $tool_item = sanitize_text_field($_POST['tool_item'] ?? '');
       $tool_description = sanitize_textarea_field($_POST['tool_description'] ?? '');
       $tool_requirements = sanitize_textarea_field($_POST['tool_requirements'] ?? '');
-      $tool_date_purchased = sanitize_text_field($_POST['tool_date_purchased'] ?? '');
-      $tool_date_calibrated = sanitize_text_field($_POST['tool_date_calibrated'] ?? '');
-      $tool_next_due = sanitize_text_field($_POST['tool_next_due'] ?? '');
+      $tool_date_purchased = self::normalize_date_input($_POST['tool_date_purchased'] ?? '');
+      $tool_date_calibrated = self::normalize_date_input($_POST['tool_date_calibrated'] ?? '');
+      $tool_next_due = self::normalize_date_input($_POST['tool_next_due'] ?? '');
       if (!$tool_item) wp_die('Missing required tool item.');
       if (!$title) {
         $title = 'R04 Tool – ' . $tool_item;
@@ -1882,13 +1897,12 @@ JS;
       $date = $tool_next_due ?: ($tool_date_calibrated ?: ($tool_date_purchased ?: date('Y-m-d')));
     } elseif ($type === 'r06_customer_complaints') {
       $customer_name = sanitize_text_field($_POST['customer_name'] ?? '');
-      $complaint_date = sanitize_text_field($_POST['complaint_date'] ?? '');
+      $complaint_date = self::normalize_date_input($_POST['complaint_date'] ?? '');
       $nature = sanitize_textarea_field($_POST['nature'] ?? '');
-      if (!$customer_name || !$complaint_date || !$nature) {
-        wp_die('Missing required fields.');
-      }
-      $title = $title ?: 'R06 Complaint – ' . $customer_name . ' (' . $complaint_date . ')';
-      $date = $complaint_date;
+      $title_suffix = $customer_name ? (' – ' . $customer_name) : '';
+      $title_date = $complaint_date ? (' (' . self::format_date_for_display($complaint_date) . ')') : '';
+      $title = $title ?: ('R06 Complaint' . $title_suffix . $title_date);
+      $date = $complaint_date ?: date('Y-m-d');
       $details = $nature;
       $actions = sanitize_textarea_field($_POST['actions_taken'] ?? '');
     } else {
@@ -1924,15 +1938,16 @@ JS;
       update_post_meta($pid, '_be_qms_tool_serial', sanitize_text_field($_POST['tool_serial'] ?? ''));
       update_post_meta($pid, '_be_qms_tool_description', sanitize_textarea_field($_POST['tool_description'] ?? ''));
       update_post_meta($pid, '_be_qms_tool_requirements', sanitize_textarea_field($_POST['tool_requirements'] ?? ''));
-      update_post_meta($pid, '_be_qms_tool_date_purchased', sanitize_text_field($_POST['tool_date_purchased'] ?? ''));
-      update_post_meta($pid, '_be_qms_tool_date_calibrated', sanitize_text_field($_POST['tool_date_calibrated'] ?? ''));
-      update_post_meta($pid, '_be_qms_tool_next_due', sanitize_text_field($_POST['tool_next_due'] ?? ''));
+      update_post_meta($pid, '_be_qms_tool_date_purchased', $tool_date_purchased);
+      update_post_meta($pid, '_be_qms_tool_date_calibrated', $tool_date_calibrated);
+      update_post_meta($pid, '_be_qms_tool_next_due', $tool_next_due);
     }
 
     if ($type === 'r06_customer_complaints') {
+      $date_closed = self::normalize_date_input($_POST['date_closed'] ?? '');
       update_post_meta($pid, '_be_qms_r06_customer_name', sanitize_text_field($_POST['customer_name'] ?? ''));
       update_post_meta($pid, '_be_qms_r06_address', sanitize_textarea_field($_POST['address'] ?? ''));
-      update_post_meta($pid, '_be_qms_r06_complaint_date', sanitize_text_field($_POST['complaint_date'] ?? ''));
+      update_post_meta($pid, '_be_qms_r06_complaint_date', $complaint_date);
       update_post_meta($pid, '_be_qms_r06_contact_name', sanitize_text_field($_POST['contact_name'] ?? ''));
       update_post_meta($pid, '_be_qms_r06_contact_email', sanitize_email($_POST['contact_email'] ?? ''));
       update_post_meta($pid, '_be_qms_r06_contact_phone', sanitize_text_field($_POST['contact_phone'] ?? ''));
@@ -1946,7 +1961,7 @@ JS;
       update_post_meta($pid, '_be_qms_r06_further_action', sanitize_textarea_field($_POST['further_action'] ?? ''));
       update_post_meta($pid, '_be_qms_r06_customer_satisfied', sanitize_text_field($_POST['customer_satisfied'] ?? ''));
       update_post_meta($pid, '_be_qms_r06_reported_by', sanitize_text_field($_POST['reported_by'] ?? ''));
-      update_post_meta($pid, '_be_qms_r06_date_closed', sanitize_text_field($_POST['date_closed'] ?? ''));
+      update_post_meta($pid, '_be_qms_r06_date_closed', $date_closed);
       update_post_meta($pid, '_be_qms_r06_reported_title', sanitize_text_field($_POST['reported_title'] ?? ''));
     }
 
@@ -2028,7 +2043,7 @@ JS;
         $del_url  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=project&id='.$pid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$pid)));
 
         echo '<tr>';
-        echo '<td>'.esc_html(get_the_date('Y-m-d')).'</td>';
+        echo '<td>'.esc_html(self::format_date_for_display(get_the_date('Y-m-d'))).'</td>';
         echo '<td><a class="be-qms-link" href="'.$view_url.'">'.esc_html(get_the_title()).'</a></td>';
         echo '<td>'.esc_html($customer ?: '-').'</td>';
         echo '<td class="be-qms-row">'
@@ -2228,7 +2243,7 @@ JS;
         $print_url= esc_url(add_query_arg(['be_qms_export'=>'print','post'=>$rid], self::portal_url()));
 
         echo '<tr>';
-        echo '<td>'.esc_html($record_date).'</td>';
+        echo '<td>'.esc_html(self::format_date_for_display($record_date)).'</td>';
         echo '<td>'.esc_html($type_name).'</td>';
         echo '<td><a class="be-qms-link" href="'.$view_url.'">'.esc_html(get_the_title()).'</a></td>';
         echo '<td class="be-qms-row">'
@@ -2480,6 +2495,7 @@ JS;
       $type_name = ($slug && isset($defs[$slug])) ? $defs[$slug] : (($terms && !is_wp_error($terms)) ? $terms[0]->name : '-');
 
       $date = get_post_meta($p->ID, '_be_qms_record_date', true) ?: get_the_date('Y-m-d', $p);
+      $display_date = self::format_date_for_display($date);
       $details = get_post_meta($p->ID, '_be_qms_details', true);
       $actions = get_post_meta($p->ID, '_be_qms_actions', true);
       $linked_project = (int) get_post_meta($p->ID, self::META_PROJECT_LINK, true);
@@ -2488,7 +2504,7 @@ JS;
         $proj_bits = ' • Project: ' . esc_html(get_the_title($linked_project) ?: ('Project #'.$linked_project));
       }
 
-      echo '<div class="muted">Type: '.esc_html($type_name).' • Date: '.esc_html($date).$proj_bits.'</div>';
+      echo '<div class="muted">Type: '.esc_html($type_name).' • Date: '.esc_html($display_date).$proj_bits.'</div>';
 
       if ($slug === 'r06_customer_complaints') {
         $customer_name = get_post_meta($p->ID, '_be_qms_r06_customer_name', true);
@@ -2508,12 +2524,14 @@ JS;
         $customer_satisfied = get_post_meta($p->ID, '_be_qms_r06_customer_satisfied', true);
         $reported_by = get_post_meta($p->ID, '_be_qms_r06_reported_by', true);
         $date_closed = get_post_meta($p->ID, '_be_qms_r06_date_closed', true);
+        $display_complaint_date = self::format_date_for_display($complaint_date);
+        $display_date_closed = self::format_date_for_display($date_closed);
         $reported_title = get_post_meta($p->ID, '_be_qms_r06_reported_title', true);
 
         echo '<table>';
         echo '<tr><th>Customer Name</th><td>'.esc_html($customer_name).'</td></tr>';
         echo '<tr><th>Address</th><td>'.wpautop(esc_html($address)).'</td></tr>';
-        echo '<tr><th>Date of Complaint</th><td>'.esc_html($complaint_date).'</td></tr>';
+        echo '<tr><th>Date of Complaint</th><td>'.esc_html($display_complaint_date).'</td></tr>';
         echo '<tr><th>Contact&#039;s Name</th><td>'.esc_html($contact_name).'</td></tr>';
         echo '<tr><th>E-mail</th><td>'.esc_html($contact_email).'</td></tr>';
         echo '<tr><th>Telephone</th><td>'.esc_html($contact_phone).'</td></tr>';
@@ -2527,7 +2545,7 @@ JS;
         echo '<tr><th>Further Action Required</th><td>'.wpautop(esc_html($further_action)).'</td></tr>';
         echo '<tr><th>Is Customer satisfied with result?</th><td>'.esc_html($customer_satisfied).'</td></tr>';
         echo '<tr><th>Reported By</th><td>'.esc_html($reported_by).'</td></tr>';
-        echo '<tr><th>Date Closed</th><td>'.esc_html($date_closed).'</td></tr>';
+        echo '<tr><th>Date Closed</th><td>'.esc_html($display_date_closed).'</td></tr>';
         echo '<tr><th>Title</th><td>'.esc_html($reported_title).'</td></tr>';
         echo '</table>';
       } else {
@@ -2572,10 +2590,11 @@ JS;
       $type_name = ($slug && isset($defs[$slug])) ? $defs[$slug] : (($terms && !is_wp_error($terms)) ? $terms[0]->name : '-');
 
       $date = get_post_meta($p->ID, '_be_qms_record_date', true) ?: get_the_date('Y-m-d', $p);
+      $display_date = self::format_date_for_display($date);
       $details = get_post_meta($p->ID, '_be_qms_details', true);
       $actions = get_post_meta($p->ID, '_be_qms_actions', true);
 
-      echo '<div class="muted">Type: '.esc_html($type_name).' • Date: '.esc_html($date).'</div>';
+      echo '<div class="muted">Type: '.esc_html($type_name).' • Date: '.esc_html($display_date).'</div>';
 
       if ($slug === 'r06_customer_complaints') {
         $customer_name = get_post_meta($p->ID, '_be_qms_r06_customer_name', true);
@@ -2595,13 +2614,15 @@ JS;
         $customer_satisfied = get_post_meta($p->ID, '_be_qms_r06_customer_satisfied', true);
         $reported_by = get_post_meta($p->ID, '_be_qms_r06_reported_by', true);
         $date_closed = get_post_meta($p->ID, '_be_qms_r06_date_closed', true);
+        $display_complaint_date = self::format_date_for_display($complaint_date);
+        $display_date_closed = self::format_date_for_display($date_closed);
         $reported_title = get_post_meta($p->ID, '_be_qms_r06_reported_title', true);
 
         echo '<h2>Customer Details</h2>';
         echo '<ul>';
         echo '<li><strong>Customer Name:</strong> '.esc_html($customer_name).'</li>';
         echo '<li><strong>Address:</strong> '.esc_html($address).'</li>';
-        echo '<li><strong>Date of Complaint:</strong> '.esc_html($complaint_date).'</li>';
+        echo '<li><strong>Date of Complaint:</strong> '.esc_html($display_complaint_date).'</li>';
         echo '</ul>';
         echo '<h2>Contact</h2>';
         echo '<ul>';
@@ -2633,7 +2654,7 @@ JS;
         echo '<ul>';
         echo '<li><strong>Is Customer satisfied with result?</strong> '.esc_html($customer_satisfied).'</li>';
         echo '<li><strong>Reported By:</strong> '.esc_html($reported_by).'</li>';
-        echo '<li><strong>Date Closed:</strong> '.esc_html($date_closed).'</li>';
+        echo '<li><strong>Date Closed:</strong> '.esc_html($display_date_closed).'</li>';
         echo '<li><strong>Title:</strong> '.esc_html($reported_title).'</li>';
         echo '</ul>';
       } else {
