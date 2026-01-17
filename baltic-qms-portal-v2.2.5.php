@@ -641,6 +641,12 @@ JS;
       return;
     }
 
+    if ($is_r04) {
+      self::render_r04_tool_list();
+      echo '</div></div>';
+      return;
+    }
+
     // Generic records list
     $label = $defs[$type] ?? 'Records';
 
@@ -1229,6 +1235,215 @@ JS;
   }
 
   // -------------------------
+  // R04 Tool Calibration
+  // -------------------------
+
+  private static function render_r04_tool_list() {
+    $add_url = esc_url(add_query_arg(['view'=>'records','type'=>'r04_tool_calibration','be_action'=>'new'], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><strong>R04 Tool Calibration</strong> <span class="be-qms-muted">(tools register)</span></div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn" href="'.$add_url.'">Add New</a></div>';
+    echo '</div>';
+
+    $tools = self::query_r04_tools();
+
+    echo '<table class="be-qms-table">';
+    echo '<thead><tr><th>Item</th><th>Serial No</th><th>Next Due</th><th>Actions</th></tr></thead><tbody>';
+
+    if (!$tools) {
+      echo '<tr><td colspan="4" class="be-qms-muted">No tools logged yet. Click “Add New”.</td></tr>';
+    } else {
+      foreach ($tools as $tool) {
+        $rid = (int) $tool->ID;
+        $item = get_post_meta($rid, '_be_qms_tool_item', true) ?: get_the_title($rid);
+        $serial = get_post_meta($rid, '_be_qms_tool_serial', true);
+        $next_due = get_post_meta($rid, '_be_qms_tool_next_due', true);
+
+        $view_url = esc_url(add_query_arg(['view'=>'records','type'=>'r04_tool_calibration','be_action'=>'view','id'=>$rid], self::portal_url()));
+        $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r04_tool_calibration','be_action'=>'edit','id'=>$rid], self::portal_url()));
+        $del_url  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=record&id='.$rid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$rid)));
+
+        echo '<tr>';
+        echo '<td><a class="be-qms-link" href="'.$view_url.'">'.esc_html($item).'</a></td>';
+        echo '<td>'.esc_html($serial ?: '—').'</td>';
+        echo '<td>'.esc_html($next_due ?: '—').'</td>';
+        echo '<td class="be-qms-row">'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$view_url.'">View</a>'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a>'
+          .'<a class="be-qms-btn be-qms-btn-danger" href="'.$del_url.'" onclick="return confirm(\'Remove this tool record?\')">Remove</a>'
+          .'</td>';
+        echo '</tr>';
+      }
+    }
+
+    echo '</tbody></table>';
+  }
+
+  private static function query_r04_tools() {
+    $q = new WP_Query([
+      'post_type' => self::CPT_RECORD,
+      'post_status' => 'publish',
+      'posts_per_page' => 200,
+      'orderby' => 'date',
+      'order' => 'DESC',
+      'tax_query' => [[
+        'taxonomy' => self::TAX_RECORD_TYPE,
+        'field' => 'slug',
+        'terms' => ['r04_tool_calibration'],
+      ]],
+    ]);
+    return $q->have_posts() ? $q->posts : [];
+  }
+
+  private static function render_r04_tool_form($id) {
+    $is_edit = $id > 0;
+    $p = $is_edit ? get_post($id) : null;
+    if ($is_edit && (!$p || $p->post_type !== self::CPT_RECORD)) {
+      echo '<div class="be-qms-muted">Tool record not found.</div>';
+      return;
+    }
+
+    $item = $is_edit ? (get_post_meta($id, '_be_qms_tool_item', true) ?: $p->post_title) : '';
+    $serial = $is_edit ? get_post_meta($id, '_be_qms_tool_serial', true) : '';
+    $description = $is_edit ? get_post_meta($id, '_be_qms_tool_description', true) : '';
+    $requirements = $is_edit ? get_post_meta($id, '_be_qms_tool_requirements', true) : '';
+    $date_purchased = $is_edit ? get_post_meta($id, '_be_qms_tool_date_purchased', true) : '';
+    $date_calibrated = $is_edit ? get_post_meta($id, '_be_qms_tool_date_calibrated', true) : '';
+    $next_due = $is_edit ? get_post_meta($id, '_be_qms_tool_next_due', true) : '';
+
+    $existing_att_ids = $is_edit ? get_post_meta($id, '_be_qms_attachments', true) : [];
+    if (!is_array($existing_att_ids)) $existing_att_ids = [];
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R04 - Tool Calibration</h3>';
+    echo '<div class="be-qms-muted">'.($is_edit ? 'Edit tool record' : 'Add new tool record').'</div></div>';
+    echo '</div>';
+
+    echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" enctype="multipart/form-data" style="margin-top:12px">';
+    echo '<input type="hidden" name="action" value="be_qms_save_record" />';
+    echo '<input type="hidden" name="record_type" value="r04_tool_calibration" />';
+    wp_nonce_field('be_qms_save_record');
+    if ($is_edit) {
+      echo '<input type="hidden" name="record_id" value="'.esc_attr($id).'" />';
+    }
+
+    echo '<div class="be-qms-grid">';
+
+    echo '<div class="be-qms-col-6"><label><strong>Item of Equipment</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="tool_item" value="'.esc_attr($item).'" required /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Serial Number</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="tool_serial" value="'.esc_attr($serial).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Calibration / Checking Requirements</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="tool_requirements" value="'.esc_attr($requirements).'" placeholder="e.g. Annual calibration" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Description / Notes</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="tool_description" value="'.esc_attr($description).'" /></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>Date Purchased</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="tool_date_purchased" value="'.esc_attr($date_purchased).'" /></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>Date Calibrated</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="tool_date_calibrated" value="'.esc_attr($date_calibrated).'" /></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>Next Calibration Date</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="tool_next_due" value="'.esc_attr($next_due).'" /></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Upload evidence</strong> <span class="be-qms-muted">(optional)</span><br/>';
+    echo '<input type="file" name="attachments[]" multiple /></label></div>';
+
+    if ($is_edit) {
+      echo '<div class="be-qms-col-12"><strong>Existing attachments</strong><br/>';
+      if (!$existing_att_ids) {
+        echo '<div class="be-qms-muted">None.</div>';
+      } else {
+        echo '<div class="be-qms-muted">Tick to remove on save:</div>';
+        echo '<ul style="margin:8px 0 0 18px">';
+        foreach ($existing_att_ids as $aid) {
+          $url = wp_get_attachment_url($aid);
+          $name = get_the_title($aid);
+          if (!$url) continue;
+          echo '<li><label style="display:flex;gap:10px;align-items:center">'
+            .'<input type="checkbox" name="remove_attachments[]" value="'.esc_attr($aid).'">'
+            .'<a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name ?: basename($url)).'</a>'
+            .'</label></li>';
+        }
+        echo '</ul>';
+      }
+      echo '</div>';
+    }
+
+    echo '</div>'; // grid
+
+    echo '<div class="be-qms-row" style="margin-top:12px">';
+    echo '<button class="be-qms-btn" type="submit">'.($is_edit ? 'Save changes' : 'Save & Close').'</button>';
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r04_tool_calibration'], self::portal_url()));
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Cancel</a>';
+    echo '</div>';
+
+    echo '</form>';
+  }
+
+  private static function render_r04_tool_view($id) {
+    $p = get_post($id);
+    if (!$p || $p->post_type !== self::CPT_RECORD) {
+      echo '<div class="be-qms-muted">Tool record not found.</div>';
+      return;
+    }
+
+    $item = get_post_meta($id, '_be_qms_tool_item', true) ?: $p->post_title;
+    $serial = get_post_meta($id, '_be_qms_tool_serial', true);
+    $description = get_post_meta($id, '_be_qms_tool_description', true);
+    $requirements = get_post_meta($id, '_be_qms_tool_requirements', true);
+    $date_purchased = get_post_meta($id, '_be_qms_tool_date_purchased', true);
+    $date_calibrated = get_post_meta($id, '_be_qms_tool_date_calibrated', true);
+    $next_due = get_post_meta($id, '_be_qms_tool_next_due', true);
+
+    $att_ids = get_post_meta($id, '_be_qms_attachments', true);
+    if (!is_array($att_ids)) $att_ids = [];
+
+    $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r04_tool_calibration','be_action'=>'edit','id'=>$id], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R04 - Tool Calibration</h3>';
+    echo '<div class="be-qms-muted">'.esc_html($item).'</div></div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a></div>';
+    echo '</div>';
+
+    echo '<div class="be-qms-card" style="margin-top:14px">';
+    echo '<table class="be-qms-table">';
+    echo '<tr><th>Item</th><td>'.esc_html($item).'</td></tr>';
+    echo '<tr><th>Serial</th><td>'.esc_html($serial ?: '—').'</td></tr>';
+    echo '<tr><th>Requirements</th><td>'.esc_html($requirements ?: '—').'</td></tr>';
+    echo '<tr><th>Description</th><td>'.esc_html($description ?: '—').'</td></tr>';
+    echo '<tr><th>Date Purchased</th><td>'.esc_html($date_purchased ?: '—').'</td></tr>';
+    echo '<tr><th>Date Calibrated</th><td>'.esc_html($date_calibrated ?: '—').'</td></tr>';
+    echo '<tr><th>Next Due</th><td>'.esc_html($next_due ?: '—').'</td></tr>';
+    echo '</table>';
+
+    echo '<h4 style="margin-top:14px">Attachments</h4>';
+    if (!$att_ids) {
+      echo '<div class="be-qms-muted">None.</div>';
+    } else {
+      echo '<ul>';
+      foreach ($att_ids as $aid) {
+        $url = wp_get_attachment_url($aid);
+        $name = get_the_title($aid);
+        if ($url) {
+          echo '<li><a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name ?: basename($url)).'</a></li>';
+        }
+      }
+      echo '</ul>';
+    }
+    echo '</div>';
+
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r04_tool_calibration'], self::portal_url()));
+    echo '<div class="be-qms-row" style="margin-top:12px"><a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Return to Records</a></div>';
+  }
+
+  // -------------------------
   // R07 Training Matrix
   // -------------------------
 
@@ -1279,7 +1494,7 @@ JS;
     ]);
 
     echo '<table class="be-qms-table">';
-    echo '<thead><tr><th>Employee</th><th>Courses</th><th>Next renewal</th><th>Actions</th></tr></thead><tbody>';
+    echo '<thead><tr><th>Employee</th><th>Qualifications</th><th>Next renewal</th><th>Actions</th></tr></thead><tbody>';
 
     if (!$employees) {
       echo '<tr><td colspan="4" class="be-qms-muted">No employees yet. Click “Add New”.</td></tr>';
@@ -1290,7 +1505,7 @@ JS;
 
         // Find next renewal date for this employee
         $next = self::r07_get_next_renewal($eid);
-        $count = self::r07_get_skill_count($eid);
+        $qualifications = self::r07_get_employee_qualifications($eid);
 
         $view = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'employee','id'=>$eid], self::portal_url()));
         $edit = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'edit_employee','id'=>$eid], self::portal_url()));
@@ -1298,7 +1513,7 @@ JS;
 
         echo '<tr>';
         echo '<td><a class="be-qms-link" href="'.$view.'">'.esc_html($e->post_title).'</a></td>';
-        echo '<td>'.esc_html((string)$count).'</td>';
+        echo '<td>'.$qualifications.'</td>';
         echo '<td>'.esc_html($next ?: '—').'</td>';
         echo '<td class="be-qms-row">'
           .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$view.'">View</a>'
@@ -1322,6 +1537,39 @@ JS;
       'meta_value' => $employee_id,
     ]);
     return is_array($ids) ? count($ids) : 0;
+  }
+
+  private static function r07_get_employee_qualifications($employee_id) {
+    $skills = get_posts([
+      'post_type' => self::CPT_TRAINING,
+      'post_status' => 'publish',
+      'numberposts' => 200,
+      'orderby' => 'date',
+      'order' => 'DESC',
+      'meta_key' => self::META_EMPLOYEE_LINK,
+      'meta_value' => $employee_id,
+    ]);
+
+    if (!$skills) {
+      return '<span class="be-qms-muted">—</span>';
+    }
+
+    $items = [];
+    foreach ($skills as $skill) {
+      $sid = (int) $skill->ID;
+      $course = get_post_meta($sid, '_be_qms_training_course', true) ?: $skill->post_title;
+      $renew = get_post_meta($sid, '_be_qms_training_renewal', true);
+      $label = $renew ? ($course . ' (renew ' . $renew . ')') : $course;
+      $items[] = esc_html($label);
+    }
+
+    $html = '<ul style="margin:0;padding-left:18px">';
+    foreach ($items as $item) {
+      $html .= '<li>'.$item.'</li>';
+    }
+    $html .= '</ul>';
+
+    return $html;
   }
 
   private static function r07_get_next_renewal($employee_id) {
@@ -1612,32 +1860,39 @@ JS;
     $actions = isset($_POST['actions']) ? wp_kses_post($_POST['actions']) : '';
     $project_id = isset($_POST['project_id']) ? (int) $_POST['project_id'] : 0;
 
-    if (!$type || !$date) {
+    if (!$type) {
       wp_die('Missing required fields.');
     }
 
     // R04 Tool Calibration uses structured fields (no generic Details required)
     if ($type === 'r04_tool_calibration') {
       $tool_item = sanitize_text_field($_POST['tool_item'] ?? '');
+      $tool_description = sanitize_textarea_field($_POST['tool_description'] ?? '');
+      $tool_requirements = sanitize_textarea_field($_POST['tool_requirements'] ?? '');
+      $tool_date_purchased = sanitize_text_field($_POST['tool_date_purchased'] ?? '');
+      $tool_date_calibrated = sanitize_text_field($_POST['tool_date_calibrated'] ?? '');
+      $tool_next_due = sanitize_text_field($_POST['tool_next_due'] ?? '');
       if (!$tool_item) wp_die('Missing required tool item.');
       if (!$title) {
         $title = 'R04 Tool – ' . $tool_item;
       }
       // Allow empty details/actions for this type
-      $details = sanitize_textarea_field($_POST['tool_description'] ?? '');
-      $actions = sanitize_textarea_field($_POST['tool_requirements'] ?? '');
+      $details = $tool_description;
+      $actions = $tool_requirements;
+      $date = $tool_next_due ?: ($tool_date_calibrated ?: ($tool_date_purchased ?: date('Y-m-d')));
     } elseif ($type === 'r06_customer_complaints') {
       $customer_name = sanitize_text_field($_POST['customer_name'] ?? '');
       $complaint_date = sanitize_text_field($_POST['complaint_date'] ?? '');
-      if (!$customer_name || !$complaint_date) {
+      $nature = sanitize_textarea_field($_POST['nature'] ?? '');
+      if (!$customer_name || !$complaint_date || !$nature) {
         wp_die('Missing required fields.');
       }
       $title = $title ?: 'R06 Complaint – ' . $customer_name . ' (' . $complaint_date . ')';
       $date = $complaint_date;
-      $details = sanitize_textarea_field($_POST['nature'] ?? '');
+      $details = $nature;
       $actions = sanitize_textarea_field($_POST['actions_taken'] ?? '');
     } else {
-      if (!$title || !$details) {
+      if (!$title || !$date || !$details) {
         wp_die('Missing required fields.');
       }
     }
