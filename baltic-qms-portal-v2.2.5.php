@@ -32,6 +32,8 @@ class BE_QMS_Portal {
     add_action('admin_post_be_qms_save_project', [__CLASS__, 'handle_save_project']);
     add_action('admin_post_be_qms_save_employee', [__CLASS__, 'handle_save_employee']);
     add_action('admin_post_be_qms_save_training', [__CLASS__, 'handle_save_training']);
+    add_action('admin_post_be_qms_save_r03_upload', [__CLASS__, 'handle_save_r03_upload']);
+    add_action('admin_post_be_qms_remove_r03_upload', [__CLASS__, 'handle_remove_r03_upload']);
     add_action('admin_post_be_qms_save_profile', [__CLASS__, 'handle_save_profile']);
     add_action('admin_post_be_qms_delete', [__CLASS__, 'handle_delete']);
 
@@ -611,6 +613,7 @@ JS;
     $is_r04 = ($type === 'r04_tool_calibration');
     $is_r06 = ($type === 'r06_customer_complaints');
     $is_r02 = ($type === 'r02_capa');
+    $is_r03 = ($type === 'r03_purchase_order');
 
     // --- Action pages (no sidebar) ---
     if ($is_r07 && in_array($action, ['new_employee','edit_employee','employee','add_skill','edit_skill'], true)) {
@@ -644,6 +647,29 @@ JS;
       }
       if ($action === 'view' && !empty($_GET['id'])) {
         self::render_r02_capa_view((int) $_GET['id']);
+        return;
+      }
+    }
+
+    if ($is_r03) {
+      if ($action === 'new') {
+        self::render_r03_purchase_order_form(0);
+        return;
+      }
+      if ($action === 'edit' && !empty($_GET['id'])) {
+        self::render_r03_purchase_order_form((int) $_GET['id']);
+        return;
+      }
+      if ($action === 'view' && !empty($_GET['id'])) {
+        self::render_r03_purchase_order_view((int) $_GET['id']);
+        return;
+      }
+      if ($action === 'uploads' && !empty($_GET['id'])) {
+        self::render_r03_purchase_order_uploads((int) $_GET['id']);
+        return;
+      }
+      if ($action === 'add_upload' && !empty($_GET['id'])) {
+        self::render_r03_purchase_order_upload_form((int) $_GET['id']);
         return;
       }
     }
@@ -706,6 +732,12 @@ JS;
 
     if ($is_r02) {
       self::render_r02_capa_list();
+      echo '</div></div>';
+      return;
+    }
+
+    if ($is_r03) {
+      self::render_r03_purchase_order_list();
       echo '</div></div>';
       return;
     }
@@ -1788,6 +1820,288 @@ JS;
   }
 
   // -------------------------
+  // R03 Purchase Order
+  // -------------------------
+
+  private static function render_r03_purchase_order_list() {
+    $add_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'new'], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div>'
+      .'<h3 style="margin:0">R03 - Purchase Order</h3>'
+      .'<div class="be-qms-muted">Purchase orders raised for goods-in checks.</div>'
+      .'</div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn" href="'.$add_url.'">Add New</a></div>';
+    echo '</div>';
+
+    $records = self::query_r03_purchase_orders();
+
+    echo '<table class="be-qms-table" style="margin-top:12px">';
+    echo '<thead><tr><th>Date Raised</th><th>PO Number</th><th>Supplier</th><th>Customer Ref</th><th>Options</th></tr></thead><tbody>';
+
+    if (!$records) {
+      echo '<tr><td colspan="5" class="be-qms-muted">No purchase orders yet. Click “Add New”.</td></tr>';
+    } else {
+      foreach ($records as $record) {
+        $rid = (int) $record->ID;
+        $date_raised = get_post_meta($rid, '_be_qms_r03_date_raised', true);
+        $po_number = get_post_meta($rid, '_be_qms_r03_po_number', true);
+        $supplier = get_post_meta($rid, '_be_qms_r03_supplier', true);
+        $customer_ref = get_post_meta($rid, '_be_qms_r03_customer_ref', true);
+
+        $view_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'view','id'=>$rid], self::portal_url()));
+        $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'edit','id'=>$rid], self::portal_url()));
+        $uploads_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'uploads','id'=>$rid], self::portal_url()));
+        $del_url  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=record&id='.$rid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$rid)));
+
+        $display_date = $date_raised ? self::format_date_for_display($date_raised) : '—';
+
+        echo '<tr>';
+        echo '<td>'.esc_html($display_date).'</td>';
+        echo '<td>'.esc_html($po_number ?: '—').'</td>';
+        echo '<td>'.esc_html($supplier ?: '—').'</td>';
+        echo '<td>'.esc_html($customer_ref ?: '—').'</td>';
+        echo '<td class="be-qms-row">'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$view_url.'">View</a>'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a>'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$uploads_url.'">Uploads</a>'
+          .'<a class="be-qms-btn be-qms-btn-danger" href="'.$del_url.'" onclick="return confirm(\'Remove this purchase order?\')">Remove</a>'
+          .'</td>';
+        echo '</tr>';
+      }
+    }
+
+    echo '</tbody></table>';
+  }
+
+  private static function query_r03_purchase_orders() {
+    $q = new WP_Query([
+      'post_type' => self::CPT_RECORD,
+      'post_status' => 'publish',
+      'posts_per_page' => 200,
+      'orderby' => 'date',
+      'order' => 'DESC',
+      'tax_query' => [[
+        'taxonomy' => self::TAX_RECORD_TYPE,
+        'field' => 'slug',
+        'terms' => ['r03_purchase_order'],
+      ]],
+    ]);
+    return $q->have_posts() ? $q->posts : [];
+  }
+
+  private static function render_r03_purchase_order_form($id) {
+    $is_edit = $id > 0;
+    $p = $is_edit ? get_post($id) : null;
+    if ($is_edit && (!$p || $p->post_type !== self::CPT_RECORD)) {
+      echo '<div class="be-qms-muted">Record not found.</div>';
+      return;
+    }
+
+    $po_number = $is_edit ? get_post_meta($id, '_be_qms_r03_po_number', true) : '';
+    $customer_ref = $is_edit ? get_post_meta($id, '_be_qms_r03_customer_ref', true) : '';
+    $supplier = $is_edit ? get_post_meta($id, '_be_qms_r03_supplier', true) : '';
+    $description = $is_edit ? get_post_meta($id, '_be_qms_r03_description', true) : '';
+    $raised_by = $is_edit ? get_post_meta($id, '_be_qms_r03_raised_by', true) : '';
+    $date_raised = $is_edit ? get_post_meta($id, '_be_qms_r03_date_raised', true) : '';
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R03 - Purchase Order</h3></div>';
+    echo '</div>';
+
+    echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" enctype="multipart/form-data" style="margin-top:12px">';
+    echo '<input type="hidden" name="action" value="be_qms_save_record" />';
+    echo '<input type="hidden" name="record_type" value="r03_purchase_order" />';
+    wp_nonce_field('be_qms_save_record');
+    if ($is_edit) {
+      echo '<input type="hidden" name="record_id" value="'.esc_attr($id).'" />';
+    }
+
+    echo '<div class="be-qms-grid">';
+
+    echo '<div class="be-qms-col-6"><label><strong>Link PO Number</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r03_po_number" value="'.esc_attr($po_number).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Customer Reference</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r03_customer_ref" value="'.esc_attr($customer_ref).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Supplier</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r03_supplier" value="'.esc_attr($supplier).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Description</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="r03_description">'.esc_textarea($description).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Raised By</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r03_raised_by" value="'.esc_attr($raised_by).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Date Raised</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="r03_date_raised" value="'.esc_attr(self::format_date_for_display($date_raised)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '</div>';
+
+    if (!$is_edit) {
+      echo '<div class="be-qms-muted" style="margin-top:10px">Uploads will appear once the record is saved.</div>';
+    }
+
+    echo '<div class="be-qms-row" style="margin-top:12px">';
+    echo '<button class="be-qms-btn" type="submit" name="save_action" value="stay">Save</button>';
+    echo '<button class="be-qms-btn be-qms-btn-secondary" type="submit" name="save_action" value="close">Save &amp; Close</button>';
+    if ($is_edit) {
+      $uploads_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'uploads','id'=>$id], self::portal_url()));
+      echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$uploads_url.'">Uploads</a>';
+    }
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order'], self::portal_url()));
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Cancel</a>';
+    echo '</div>';
+
+    echo '</form>';
+  }
+
+  private static function render_r03_purchase_order_view($id) {
+    $p = get_post($id);
+    if (!$p || $p->post_type !== self::CPT_RECORD) {
+      echo '<div class="be-qms-muted">Record not found.</div>';
+      return;
+    }
+
+    $po_number = get_post_meta($id, '_be_qms_r03_po_number', true);
+    $customer_ref = get_post_meta($id, '_be_qms_r03_customer_ref', true);
+    $supplier = get_post_meta($id, '_be_qms_r03_supplier', true);
+    $description = get_post_meta($id, '_be_qms_r03_description', true);
+    $raised_by = get_post_meta($id, '_be_qms_r03_raised_by', true);
+    $date_raised = get_post_meta($id, '_be_qms_r03_date_raised', true);
+
+    $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'edit','id'=>$id], self::portal_url()));
+    $uploads_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'uploads','id'=>$id], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R03 - Purchase Order</h3>';
+    echo '<div class="be-qms-muted">'.esc_html(self::format_date_for_display($date_raised) ?: '—').'</div></div>';
+    echo '<div class="be-qms-row">'
+      .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a>'
+      .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$uploads_url.'">Uploads</a>'
+      .'</div>';
+    echo '</div>';
+
+    echo '<div class="be-qms-card" style="margin-top:14px">';
+    echo '<table class="be-qms-table">';
+    echo '<tr><th>PO Number</th><td>'.esc_html($po_number ?: '—').'</td></tr>';
+    echo '<tr><th>Customer Reference</th><td>'.esc_html($customer_ref ?: '—').'</td></tr>';
+    echo '<tr><th>Supplier</th><td>'.esc_html($supplier ?: '—').'</td></tr>';
+    echo '<tr><th>Raised By</th><td>'.esc_html($raised_by ?: '—').'</td></tr>';
+    echo '<tr><th>Date Raised</th><td>'.esc_html(self::format_date_for_display($date_raised) ?: '—').'</td></tr>';
+    echo '<tr><th>Description</th><td>'.wpautop(esc_html($description)).'</td></tr>';
+    echo '</table>';
+    echo '</div>';
+
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order'], self::portal_url()));
+    echo '<div class="be-qms-row" style="margin-top:12px"><a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Return to Records</a></div>';
+  }
+
+  private static function render_r03_purchase_order_uploads($id) {
+    $p = get_post($id);
+    if (!$p || $p->post_type !== self::CPT_RECORD) {
+      echo '<div class="be-qms-muted">Record not found.</div>';
+      return;
+    }
+
+    $doc_ids = get_post_meta($id, '_be_qms_r03_documents', true);
+    if (!is_array($doc_ids)) $doc_ids = [];
+    $photo_ids = get_post_meta($id, '_be_qms_r03_photos', true);
+    if (!is_array($photo_ids)) $photo_ids = [];
+
+    $add_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'add_upload','id'=>$id], self::portal_url()));
+    $back_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'edit','id'=>$id], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R03 - Purchase Order</h3><div class="be-qms-muted">Documents</div></div>';
+    echo '<div class="be-qms-row">'
+      .'<a class="be-qms-btn" href="'.$add_url.'">Add File</a>'
+      .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$back_url.'">Return to Record</a>'
+      .'</div>';
+    echo '</div>';
+
+    echo '<h4 style="margin-top:16px">Documents</h4>';
+    echo '<table class="be-qms-table">';
+    echo '<thead><tr><th>File</th><th>Date Uploaded</th><th>Options</th></tr></thead><tbody>';
+    if (!$doc_ids) {
+      echo '<tr><td colspan="3" class="be-qms-muted">No files have been uploaded in this section.</td></tr>';
+    } else {
+      foreach ($doc_ids as $aid) {
+        $url = wp_get_attachment_url($aid);
+        $name = get_the_title($aid) ?: basename((string) $url);
+        $date = get_the_date('Y-m-d', $aid);
+        $remove_url = esc_url(admin_url('admin-post.php?action=be_qms_remove_r03_upload&id='.$id.'&attachment_id='.$aid.'&upload_type=document&_wpnonce='.wp_create_nonce('be_qms_remove_r03_upload_'.$id)));
+        echo '<tr>';
+        echo '<td>'.($url ? '<a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name).'</a>' : esc_html($name)).'</td>';
+        echo '<td>'.esc_html(self::format_date_for_display($date)).'</td>';
+        echo '<td class="be-qms-row"><a class="be-qms-btn be-qms-btn-danger" href="'.$remove_url.'" onclick="return confirm(\'Remove this file?\')">Remove</a></td>';
+        echo '</tr>';
+      }
+    }
+    echo '</tbody></table>';
+
+    echo '<h4 style="margin-top:20px">Photos</h4>';
+    echo '<table class="be-qms-table">';
+    echo '<thead><tr><th>File</th><th>Date Uploaded</th><th>Options</th></tr></thead><tbody>';
+    if (!$photo_ids) {
+      echo '<tr><td colspan="3" class="be-qms-muted">No files have been uploaded in this section.</td></tr>';
+    } else {
+      foreach ($photo_ids as $aid) {
+        $url = wp_get_attachment_url($aid);
+        $name = get_the_title($aid) ?: basename((string) $url);
+        $date = get_the_date('Y-m-d', $aid);
+        $remove_url = esc_url(admin_url('admin-post.php?action=be_qms_remove_r03_upload&id='.$id.'&attachment_id='.$aid.'&upload_type=image&_wpnonce='.wp_create_nonce('be_qms_remove_r03_upload_'.$id)));
+        echo '<tr>';
+        echo '<td>'.($url ? '<a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name).'</a>' : esc_html($name)).'</td>';
+        echo '<td>'.esc_html(self::format_date_for_display($date)).'</td>';
+        echo '<td class="be-qms-row"><a class="be-qms-btn be-qms-btn-danger" href="'.$remove_url.'" onclick="return confirm(\'Remove this file?\')">Remove</a></td>';
+        echo '</tr>';
+      }
+    }
+    echo '</tbody></table>';
+  }
+
+  private static function render_r03_purchase_order_upload_form($id) {
+    $p = get_post($id);
+    if (!$p || $p->post_type !== self::CPT_RECORD) {
+      echo '<div class="be-qms-muted">Record not found.</div>';
+      return;
+    }
+
+    $upload_url = esc_url(admin_url('admin-post.php'));
+    $back_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'uploads','id'=>$id], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R03 - Purchase Order</h3></div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn be-qms-btn-secondary" href="'.$back_url.'">Return to Uploads</a></div>';
+    echo '</div>';
+
+    echo '<form method="post" action="'.$upload_url.'" enctype="multipart/form-data" style="margin-top:12px">';
+    echo '<input type="hidden" name="action" value="be_qms_save_r03_upload" />';
+    echo '<input type="hidden" name="record_id" value="'.esc_attr($id).'" />';
+    wp_nonce_field('be_qms_save_r03_upload');
+
+    echo '<div class="be-qms-grid">';
+    echo '<div class="be-qms-col-6"><label><strong>Upload Type</strong><br/>';
+    echo '<select class="be-qms-select" name="upload_type" required>';
+    echo '<option value="">Please Select</option>';
+    echo '<option value="document">Document</option>';
+    echo '<option value="image">Image</option>';
+    echo '</select></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Upload File</strong><br/>';
+    echo '<input type="file" name="r03_upload" required /></label></div>';
+    echo '</div>';
+
+    echo '<div class="be-qms-row" style="margin-top:12px">';
+    echo '<button class="be-qms-btn" type="submit">Upload</button>';
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$back_url.'">Return to Uploads</a>';
+    echo '</div>';
+    echo '</form>';
+  }
+
+  // -------------------------
   // R07 Training Matrix
   // -------------------------
 
@@ -2226,6 +2540,22 @@ JS;
       $date = $capa_date ?: date('Y-m-d');
       $details = $details_issue;
       $actions = $summary_action;
+    } elseif ($type === 'r03_purchase_order') {
+      $po_number = sanitize_text_field($_POST['r03_po_number'] ?? '');
+      $customer_ref = sanitize_text_field($_POST['r03_customer_ref'] ?? '');
+      $supplier = sanitize_text_field($_POST['r03_supplier'] ?? '');
+      $description = sanitize_textarea_field($_POST['r03_description'] ?? '');
+      $raised_by = sanitize_text_field($_POST['r03_raised_by'] ?? '');
+      $date_raised = self::normalize_date_input($_POST['r03_date_raised'] ?? '');
+
+      $title_bits = array_filter([
+        $po_number ? ('PO ' . $po_number) : '',
+        $supplier ?: '',
+      ]);
+      $title = $title ?: ('R03 Purchase Order' . ($title_bits ? (' – ' . implode(' • ', $title_bits)) : ''));
+      $date = $date_raised ?: date('Y-m-d');
+      $details = $description;
+      $actions = '';
     } else {
       if (!$title || !$date || !$details) {
         wp_die('Missing required fields.');
@@ -2302,6 +2632,15 @@ JS;
       update_post_meta($pid, '_be_qms_capa_prevent_recurrence', $prevent_recurrence);
     }
 
+    if ($type === 'r03_purchase_order') {
+      update_post_meta($pid, '_be_qms_r03_po_number', $po_number);
+      update_post_meta($pid, '_be_qms_r03_customer_ref', $customer_ref);
+      update_post_meta($pid, '_be_qms_r03_supplier', $supplier);
+      update_post_meta($pid, '_be_qms_r03_description', $description);
+      update_post_meta($pid, '_be_qms_r03_raised_by', $raised_by);
+      update_post_meta($pid, '_be_qms_r03_date_raised', $date_raised);
+    }
+
     if ($project_id > 0) {
       update_post_meta($pid, self::META_PROJECT_LINK, $project_id);
     } else {
@@ -2324,7 +2663,74 @@ JS;
 
     update_post_meta($pid, '_be_qms_attachments', $existing);
 
-    $url = add_query_arg(['view'=>'records','be_action'=>'view','id'=>$pid,'type'=>$type], self::portal_url());
+    $save_action = sanitize_key($_POST['save_action'] ?? '');
+    if ($type === 'r03_purchase_order') {
+      if ($save_action === 'uploads') {
+        $url = add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'uploads','id'=>$pid], self::portal_url());
+      } elseif ($save_action === 'close') {
+        $url = add_query_arg(['view'=>'records','type'=>'r03_purchase_order'], self::portal_url());
+      } else {
+        $url = add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'edit','id'=>$pid], self::portal_url());
+      }
+    } else {
+      $url = add_query_arg(['view'=>'records','be_action'=>'view','id'=>$pid,'type'=>$type], self::portal_url());
+    }
+    wp_safe_redirect($url);
+    exit;
+  }
+
+  public static function handle_save_r03_upload() {
+    self::require_staff();
+    check_admin_referer('be_qms_save_r03_upload');
+
+    $record_id = isset($_POST['record_id']) ? (int) $_POST['record_id'] : 0;
+    if (!$record_id) {
+      wp_die('Missing record.');
+    }
+
+    $upload_type = sanitize_key($_POST['upload_type'] ?? '');
+    if (!in_array($upload_type, ['document', 'image'], true)) {
+      wp_die('Invalid upload type.');
+    }
+
+    $new_ids = self::handle_uploads('r03_upload');
+    if (!$new_ids) {
+      wp_die('No file uploaded.');
+    }
+
+    $meta_key = ($upload_type === 'document') ? '_be_qms_r03_documents' : '_be_qms_r03_photos';
+    $existing = get_post_meta($record_id, $meta_key, true);
+    if (!is_array($existing)) $existing = [];
+    $existing = array_values(array_unique(array_merge($existing, $new_ids)));
+    update_post_meta($record_id, $meta_key, $existing);
+
+    $url = add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'uploads','id'=>$record_id], self::portal_url());
+    wp_safe_redirect($url);
+    exit;
+  }
+
+  public static function handle_remove_r03_upload() {
+    self::require_staff();
+
+    $record_id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+    $attachment_id = isset($_GET['attachment_id']) ? (int) $_GET['attachment_id'] : 0;
+    $upload_type = sanitize_key($_GET['upload_type'] ?? '');
+
+    if (!$record_id || !$attachment_id) {
+      wp_die('Missing data.');
+    }
+
+    if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'be_qms_remove_r03_upload_'.$record_id)) {
+      wp_die('Invalid nonce.');
+    }
+
+    $meta_key = ($upload_type === 'image') ? '_be_qms_r03_photos' : '_be_qms_r03_documents';
+    $existing = get_post_meta($record_id, $meta_key, true);
+    if (!is_array($existing)) $existing = [];
+    $existing = array_values(array_diff(array_map('intval', $existing), [$attachment_id]));
+    update_post_meta($record_id, $meta_key, $existing);
+
+    $url = add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'uploads','id'=>$record_id], self::portal_url());
     wp_safe_redirect($url);
     exit;
   }
