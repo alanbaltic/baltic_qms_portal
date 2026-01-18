@@ -607,10 +607,11 @@ JS;
     echo '<div class="be-qms-col-6">';
     echo '<h4 style="margin-top:0">Standards (official sources)</h4>';
     echo '<ul>';
-    echo '<li><a class="be-qms-link" target="_blank" href="https://mcscertified.com/wp-content/uploads/2024/11/MCS-001-1-Issue-4.2_Final.pdf">MCS-001 (Issue 4.2)</a></li>';
-    echo '<li><a class="be-qms-link" target="_blank" href="https://mcscertified.com/">MIS 3002 (Solar PV) – download from MCS Installer Resources</a></li>';
-    echo '<li><a class="be-qms-link" target="_blank" href="https://mcscertified.com/">MIS 3012 (Battery) – download from MCS Installer Resources</a></li>';
+    foreach ($external_docs as $doc) {
+      echo '<li><a class="be-qms-link" target="_blank" href="'.esc_url($doc['url']).'">'.esc_html($doc['title']).'</a></li>';
+    }
     echo '</ul>';
+    echo '<div class="be-qms-muted">Use these as the starting entries for your external document register tab.</div>';
     echo '</div>';
 
     echo '</div>';
@@ -619,40 +620,29 @@ JS;
     echo '<h4>Document &amp; Data Control</h4>';
     echo '<p class="be-qms-muted">Track external documents and the internal documents/data you control. Use the template to maintain your live document register.</p>';
 
-    echo '<div class="be-qms-row" style="margin-bottom:10px">';
-    echo '<a class="be-qms-tab is-active" href="#external-docs">External Docs</a>';
-    echo '<a class="be-qms-tab" href="#accessed-docs">Accessed Docs</a>';
-    echo '</div>';
-
     echo '<div class="be-qms-grid">';
-    echo '<div class="be-qms-col-6" id="external-docs">';
-    echo '<h4 style="margin-top:0">External documents</h4>';
-    echo '<ul>';
-    foreach ($external_docs as $doc) {
-      echo '<li><a class="be-qms-link" target="_blank" href="'.esc_url($doc['url']).'">'.esc_html($doc['title']).'</a></li>';
-    }
-    echo '</ul>';
-    echo '<div class="be-qms-muted">Add any other externally controlled documents your assessor expects you to reference.</div>';
-    echo '</div>';
-
-    echo '<div class="be-qms-col-6" id="accessed-docs">';
+    echo '<div class="be-qms-col-6">';
     echo '<h4 style="margin-top:0">Document register sections</h4>';
     echo '<table class="be-qms-table">';
     echo '<thead><tr><th>Tab</th><th>Purpose</th></tr></thead><tbody>';
     echo '<tr><td>External Docs</td><td>Documents held externally (not produced by the company).</td></tr>';
-    echo '<tr><td>Accessed Docs</td><td>Information accessed online but not held by the company. <a class="be-qms-link" target="_blank" href="http://www.planningportal.gov.uk/buildingregulations/approveddocuments/">Planning Portal Approved Documents</a></td></tr>';
+    echo '<tr><td>Accessed Docs</td><td>Information accessed online but not held by the company.</td></tr>';
     echo '<tr><td>Live Company Docs</td><td>Company-controlled procedures and standard forms.</td></tr>';
     echo '<tr><td>Old Company Docs</td><td>Superseded company documents no longer in use.</td></tr>';
     echo '<tr><td>Software</td><td>Software used for generating critical data.</td></tr>';
     echo '<tr><td>Data Storage</td><td>Where company-generated data is stored.</td></tr>';
     echo '<tr><td>Backup Info</td><td>Backup frequency and backup locations.</td></tr>';
     echo '</tbody></table>';
-    echo '<h4 style="margin-top:14px">Accessed documents</h4>';
+    echo '</div>';
+
+    echo '<div class="be-qms-col-6">';
+    echo '<h4 style="margin-top:0">Accessed documents</h4>';
     echo '<ul>';
     foreach ($accessed_docs as $doc) {
       echo '<li><a class="be-qms-link" target="_blank" href="'.esc_url($doc['url']).'">'.esc_html($doc['title']).'</a></li>';
     }
     echo '</ul>';
+    echo '<div class="be-qms-muted">Add other online references your assessor expects you to track.</div>';
     echo '</div>';
     echo '</div>';
 
