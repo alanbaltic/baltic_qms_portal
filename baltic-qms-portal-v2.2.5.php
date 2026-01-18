@@ -263,7 +263,14 @@ CSS;
     $js = <<<'JS'
 jQuery(function($){
   $('.be-qms-date').each(function(){
-    try{ $(this).datepicker({ dateFormat: 'dd/mm/yy' }); }catch(e){}
+    try{
+      $(this).datepicker({
+        dateFormat: 'dd/mm/yy',
+        showButtonPanel: true,
+        currentText: 'Today',
+        closeText: 'Close'
+      });
+    }catch(e){}
   });
 });
 JS;
@@ -2140,10 +2147,16 @@ JS;
     echo '<div class="be-qms-row" style="justify-content:space-between">';
     echo '<div>'
       .'<h3 style="margin:0">Personal Skills &amp; Training Matrix</h3>'
-      .'<div class="be-qms-muted">Your existing employees/courses are displayed below. Click “View” to manage an employee’s skill records.</div>'
+      .'<div class="be-qms-muted">Your existing employees/courses are displayed below. Click “View” to manage their training and skills.</div>'
       .'</div>';
     $add = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'new_employee'], self::portal_url()));
-    echo '<a class="be-qms-btn" href="'.$add.'">Add New</a>';
+    $print_url = esc_url(add_query_arg(['be_qms_export'=>'print_r07'], self::portal_url()));
+    $back_url = esc_url(add_query_arg(['view'=>'records'], self::portal_url()));
+    echo '<div class="be-qms-row">'
+      .'<a class="be-qms-btn" href="'.$add.'">Add New</a>'
+      .'<a class="be-qms-btn be-qms-btn-secondary" target="_blank" href="'.$print_url.'">Print Log</a>'
+      .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$back_url.'">Return to Records</a>'
+      .'</div>';
     echo '</div>';
 
     $skills = get_posts([
@@ -2193,21 +2206,17 @@ JS;
         $renew = get_post_meta($sid, '_be_qms_training_renewal', true);
 
         $emp_cell = '';
+        $emp_view = '';
+        $emp_del = '';
         if ($eid && $eid !== $last_emp) {
           $emp_view = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'employee','id'=>$eid], self::portal_url()));
-          $emp_edit = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'edit_employee','id'=>$eid], self::portal_url()));
           $emp_del  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=employee&id='.$eid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$eid)));
           $emp_cell = '<a class="be-qms-link" href="'.$emp_view.'">'.esc_html($emp_name).'</a>'
             .'<div class="be-qms-muted" style="margin-top:6px">'
-            .'<a class="be-qms-link" href="'.$emp_edit.'" style="font-weight:700">Edit</a>'
-            .' &nbsp;·&nbsp; '
             .'<a class="be-qms-link" href="'.$emp_del.'" style="color:#fecaca" onclick="return confirm(\'Delete this employee and their training records?\')">Remove</a>'
             .'</div>';
         }
 
-        $skill_edit = $eid
-          ? esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'edit_skill','emp'=>$eid,'id'=>$sid], self::portal_url()))
-          : '';
         $skill_del  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=training&id='.$sid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$sid)));
 
         $display_renew = $renew ? self::format_date_for_display($renew) : '—';
@@ -2217,8 +2226,9 @@ JS;
         echo '<td>'.esc_html($course).'</td>';
         echo '<td>'.esc_html($display_renew).'</td>';
         echo '<td class="be-qms-row">'
-          .($skill_edit ? '<a class="be-qms-btn be-qms-btn-secondary" href="'.$skill_edit.'">Edit</a>' : '')
-          .'<a class="be-qms-btn be-qms-btn-danger" href="'.$skill_del.'" onclick="return confirm(\'Remove this skill record?\')">Remove</a>'
+          .($emp_cell ? '<a class="be-qms-btn be-qms-btn-secondary" href="'.$emp_view.'">View</a>' : '')
+          .($emp_cell ? '<a class="be-qms-btn be-qms-btn-danger" href="'.$emp_del.'" onclick="return confirm(\'Remove this employee and their training records?\')">Remove</a>' : '')
+          .(!$emp_cell ? '<a class="be-qms-btn be-qms-btn-danger" href="'.$skill_del.'" onclick="return confirm(\'Remove this skill record?\')">Remove</a>' : '')
           .'</td>';
         echo '</tr>';
 
@@ -2270,11 +2280,15 @@ JS;
     }
 
     echo '<div class="be-qms-row" style="justify-content:space-between">';
-    echo '<div><h3 style="margin:0">'.esc_html($p->post_title).'</h3><div class="be-qms-muted">R07 Training records</div></div>';
-    $add = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'add_skill','emp'=>$employee_id], self::portal_url()));
-    echo '<a class="be-qms-btn" href="'.$add.'">Add New Skill Record</a>';
+    echo '<div><h3 style="margin:0">R07 - Personal Skills &amp; Training Matrix</h3><div class="be-qms-muted">Employee: <strong>'.esc_html($p->post_title).'</strong></div></div>';
+    $return_url = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix'], self::portal_url()));
+    echo '<div class="be-qms-row"><a class="be-qms-btn be-qms-btn-secondary" href="'.$return_url.'">Return to Records</a></div>';
     echo '</div>';
 
+    echo '<h4 style="margin-top:16px">Add New Skill Record</h4>';
+    self::render_r07_skill_form($employee_id, 0, false);
+
+    echo '<h4 style="margin-top:16px">Skill Records</h4>';
     $skills = get_posts([
       'post_type' => self::CPT_TRAINING,
       'post_status' => 'publish',
@@ -2316,7 +2330,7 @@ JS;
     echo '<div class="be-qms-row" style="margin-top:12px"><a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">← Return to R07</a></div>';
   }
 
-  private static function render_r07_skill_form($employee_id, $skill_id) {
+  private static function render_r07_skill_form($employee_id, $skill_id, $show_header = true) {
     $emp = get_post($employee_id);
     if (!$emp || $emp->post_type !== self::CPT_EMPLOYEE) {
       echo '<div class="be-qms-muted">Employee not found.</div>';
@@ -2344,8 +2358,10 @@ JS;
       if (!is_array($att_ids)) $att_ids = [];
     }
 
-    echo '<h3>'.($is_edit ? 'Edit skill record' : 'Add new skill record').'</h3>';
-    echo '<div class="be-qms-muted">Employee: '.esc_html($emp->post_title).'</div>';
+    if ($show_header) {
+      echo '<h3>'.($is_edit ? 'Edit skill record' : 'Add new skill record').'</h3>';
+      echo '<div class="be-qms-muted">Employee: '.esc_html($emp->post_title).'</div>';
+    }
 
     $save_url = esc_url(admin_url('admin-post.php'));
     echo '<form method="post" action="'.$save_url.'" enctype="multipart/form-data">';
@@ -3195,6 +3211,12 @@ JS;
       exit;
     }
 
+    if (!empty($_GET['be_qms_export']) && sanitize_key($_GET['be_qms_export']) === 'print_r07') {
+      self::require_staff();
+      self::export_print_r07(isset($_GET['employee_id']) ? (int) $_GET['employee_id'] : 0);
+      exit;
+    }
+
     if (empty($_GET['be_qms_export']) || empty($_GET['post'])) return;
 
     self::require_staff();
@@ -3216,6 +3238,53 @@ JS;
       self::export_print($p);
       exit;
     }
+  }
+
+  private static function export_print_r07($employee_id = 0) {
+    $title = $employee_id ? ('Training Matrix – ' . (get_the_title($employee_id) ?: 'Employee')) : 'Training Matrix – All Employees';
+    $args = [
+      'post_type' => self::CPT_TRAINING,
+      'post_status' => 'publish',
+      'posts_per_page' => 500,
+      'orderby' => 'date',
+      'order' => 'DESC',
+    ];
+    if ($employee_id > 0) {
+      $args['meta_key'] = self::META_EMPLOYEE_LINK;
+      $args['meta_value'] = $employee_id;
+    }
+    $skills = get_posts($args);
+
+    echo '<!doctype html><html><head><meta charset="utf-8"><title>'.esc_html($title).'</title>';
+    echo '<style>body{font-family:Arial,sans-serif;padding:30px;color:#111;} h1{margin:0 0 10px 0;} table{width:100%;border-collapse:collapse;} th,td{border:1px solid #ddd;padding:8px;font-size:12px;} th{background:#f3f4f6;text-align:left;} .muted{color:#666;font-size:12px;margin-bottom:18px;} @media print{button{display:none}}</style>';
+    echo '</head><body>';
+    echo '<button onclick="window.print()" style="padding:10px 14px;border-radius:10px;border:1px solid #ddd;background:#f8fafc;cursor:pointer">Print / Save as PDF</button>';
+    echo '<h1>'.esc_html($title).'</h1>';
+    echo '<div class="muted">Generated by Baltic QMS Portal v'.esc_html(self::VERSION).'</div>';
+
+    echo '<table><thead><tr><th>Employee Name</th><th>Course Name</th><th>Date of Course</th><th>Renewal Date</th></tr></thead><tbody>';
+
+    if (!$skills) {
+      echo '<tr><td colspan="4">No records.</td></tr>';
+    } else {
+      foreach ($skills as $skill) {
+        $sid = (int) $skill->ID;
+        $eid = (int) get_post_meta($sid, self::META_EMPLOYEE_LINK, true);
+        $emp = $eid ? get_the_title($eid) : '-';
+        $course = get_post_meta($sid, '_be_qms_training_course', true) ?: $skill->post_title;
+        $course_date = get_post_meta($sid, '_be_qms_training_date', true);
+        $renewal = get_post_meta($sid, '_be_qms_training_renewal', true);
+        echo '<tr>';
+        echo '<td>'.esc_html($emp).'</td>';
+        echo '<td>'.esc_html($course).'</td>';
+        echo '<td>'.esc_html(self::format_date_for_display($course_date)).'</td>';
+        echo '<td>'.esc_html(self::format_date_for_display($renewal)).'</td>';
+        echo '</tr>';
+      }
+    }
+
+    echo '</tbody></table>';
+    echo '</body></html>';
   }
 
   private static function export_doc($p) {
