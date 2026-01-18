@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Baltic QMS Portal
  * Description: Staff-only QMS portal for recording MCS evidence (projects + records) with DOC export and print-to-PDF.
- * Version: 2.2.6
+ * Version: 2.2.7
  * Author: Baltic Electric
  */
 
 if (!defined('ABSPATH')) { exit; }
 
 class BE_QMS_Portal {
-  const VERSION = '2.2.6';
+  const VERSION = '2.2.7';
   const CPT_RECORD = 'be_qms_record';
   const CPT_PROJECT = 'be_qms_install'; // keep CPT key for backwards compatibility
   const TAX_RECORD_TYPE = 'be_qms_record_type';
@@ -695,6 +695,8 @@ JS;
     $is_r06 = ($type === 'r06_customer_complaints');
     $is_r02 = ($type === 'r02_capa');
     $is_r03 = ($type === 'r03_purchase_order');
+    $is_r08 = ($type === 'r08_approved_suppliers');
+    $is_r09 = ($type === 'r09_approved_subcontract');
 
     // --- Action pages (no sidebar) ---
     if ($is_r07 && in_array($action, ['new_employee','edit_employee','employee','add_skill','edit_skill'], true)) {
@@ -751,6 +753,36 @@ JS;
       }
       if ($action === 'add_upload' && !empty($_GET['id'])) {
         self::render_r03_purchase_order_upload_form((int) $_GET['id']);
+        return;
+      }
+    }
+
+    if ($is_r08) {
+      if ($action === 'new') {
+        self::render_r08_supplier_form(0);
+        return;
+      }
+      if ($action === 'edit' && !empty($_GET['id'])) {
+        self::render_r08_supplier_form((int) $_GET['id']);
+        return;
+      }
+      if ($action === 'view' && !empty($_GET['id'])) {
+        self::render_r08_supplier_view((int) $_GET['id']);
+        return;
+      }
+    }
+
+    if ($is_r09) {
+      if ($action === 'new') {
+        self::render_r09_subcontractor_form(0);
+        return;
+      }
+      if ($action === 'edit' && !empty($_GET['id'])) {
+        self::render_r09_subcontractor_form((int) $_GET['id']);
+        return;
+      }
+      if ($action === 'view' && !empty($_GET['id'])) {
+        self::render_r09_subcontractor_view((int) $_GET['id']);
         return;
       }
     }
@@ -819,6 +851,18 @@ JS;
 
     if ($is_r03) {
       self::render_r03_purchase_order_list();
+      echo '</div></div>';
+      return;
+    }
+
+    if ($is_r08) {
+      self::render_r08_supplier_list();
+      echo '</div></div>';
+      return;
+    }
+
+    if ($is_r09) {
+      self::render_r09_subcontractor_list();
       echo '</div></div>';
       return;
     }
@@ -2348,6 +2392,539 @@ JS;
   }
 
   // -------------------------
+  // R08 Approved Suppliers
+  // -------------------------
+
+  private static function render_r08_supplier_list() {
+    $add_url = esc_url(add_query_arg(['view'=>'records','type'=>'r08_approved_suppliers','be_action'=>'new'], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div>'
+      .'<h3 style="margin:0">R08 - Approved Suppliers</h3>'
+      .'<div class="be-qms-muted">Maintain the list of approved suppliers used for procurement.</div>'
+      .'</div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn" href="'.$add_url.'">Add New</a></div>';
+    echo '</div>';
+
+    $suppliers = self::query_r08_suppliers();
+
+    echo '<table class="be-qms-table" style="margin-top:12px">';
+    echo '<thead><tr><th>Supplier</th><th>Services / Products</th><th>Approved</th><th>Review Date</th><th>Status</th><th>Options</th></tr></thead><tbody>';
+
+    if (!$suppliers) {
+      echo '<tr><td colspan="6" class="be-qms-muted">No approved suppliers yet. Click “Add New”.</td></tr>';
+    } else {
+      foreach ($suppliers as $supplier) {
+        $rid = (int) $supplier->ID;
+        $name = get_post_meta($rid, '_be_qms_r08_supplier_name', true) ?: $supplier->post_title;
+        $services = get_post_meta($rid, '_be_qms_r08_services', true);
+        $approved_date = get_post_meta($rid, '_be_qms_r08_approval_date', true);
+        $review_date = get_post_meta($rid, '_be_qms_r08_review_date', true);
+        $status = get_post_meta($rid, '_be_qms_r08_status', true);
+
+        $view_url = esc_url(add_query_arg(['view'=>'records','type'=>'r08_approved_suppliers','be_action'=>'view','id'=>$rid], self::portal_url()));
+        $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r08_approved_suppliers','be_action'=>'edit','id'=>$rid], self::portal_url()));
+        $del_url  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=record&id='.$rid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$rid)));
+
+        $display_approved = $approved_date ? self::format_date_for_display($approved_date) : '—';
+        $display_review = $review_date ? self::format_date_for_display($review_date) : '—';
+
+        echo '<tr>';
+        echo '<td><a class="be-qms-link" href="'.$view_url.'">'.esc_html($name ?: '—').'</a></td>';
+        echo '<td>'.esc_html($services ?: '—').'</td>';
+        echo '<td>'.esc_html($display_approved).'</td>';
+        echo '<td>'.esc_html($display_review).'</td>';
+        echo '<td>'.esc_html($status ?: '—').'</td>';
+        echo '<td class="be-qms-row">'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$view_url.'">View</a>'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a>'
+          .'<a class="be-qms-btn be-qms-btn-danger" href="'.$del_url.'" onclick="return confirm(\'Remove this supplier?\')">Remove</a>'
+          .'</td>';
+        echo '</tr>';
+      }
+    }
+
+    echo '</tbody></table>';
+  }
+
+  private static function query_r08_suppliers() {
+    $q = new WP_Query([
+      'post_type' => self::CPT_RECORD,
+      'post_status' => 'publish',
+      'posts_per_page' => 200,
+      'orderby' => 'title',
+      'order' => 'ASC',
+      'tax_query' => [[
+        'taxonomy' => self::TAX_RECORD_TYPE,
+        'field' => 'slug',
+        'terms' => ['r08_approved_suppliers'],
+      ]],
+    ]);
+    return $q->have_posts() ? $q->posts : [];
+  }
+
+  private static function render_r08_supplier_form($id) {
+    $is_edit = $id > 0;
+    $p = $is_edit ? get_post($id) : null;
+    if ($is_edit && (!$p || $p->post_type !== self::CPT_RECORD)) {
+      echo '<div class="be-qms-muted">Supplier record not found.</div>';
+      return;
+    }
+
+    $name = $is_edit ? (get_post_meta($id, '_be_qms_r08_supplier_name', true) ?: $p->post_title) : '';
+    $services = $is_edit ? get_post_meta($id, '_be_qms_r08_services', true) : '';
+    $contact_name = $is_edit ? get_post_meta($id, '_be_qms_r08_contact_name', true) : '';
+    $contact_email = $is_edit ? get_post_meta($id, '_be_qms_r08_contact_email', true) : '';
+    $contact_phone = $is_edit ? get_post_meta($id, '_be_qms_r08_contact_phone', true) : '';
+    $address = $is_edit ? get_post_meta($id, '_be_qms_r08_address', true) : '';
+    $approved_by = $is_edit ? get_post_meta($id, '_be_qms_r08_approved_by', true) : '';
+    $approval_date = $is_edit ? get_post_meta($id, '_be_qms_r08_approval_date', true) : '';
+    $review_date = $is_edit ? get_post_meta($id, '_be_qms_r08_review_date', true) : '';
+    $status = $is_edit ? get_post_meta($id, '_be_qms_r08_status', true) : '';
+    $notes = $is_edit ? get_post_meta($id, '_be_qms_r08_notes', true) : '';
+    $existing_att_ids = $is_edit ? get_post_meta($id, '_be_qms_attachments', true) : [];
+    if (!is_array($existing_att_ids)) $existing_att_ids = [];
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R08 - Approved Suppliers</h3>';
+    echo '<div class="be-qms-muted">'.($is_edit ? 'Edit supplier record' : 'Add new supplier').'</div></div>';
+    echo '</div>';
+
+    echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" enctype="multipart/form-data" style="margin-top:12px">';
+    echo '<input type="hidden" name="action" value="be_qms_save_record" />';
+    echo '<input type="hidden" name="record_type" value="r08_approved_suppliers" />';
+    wp_nonce_field('be_qms_save_record');
+    if ($is_edit) {
+      echo '<input type="hidden" name="record_id" value="'.esc_attr($id).'" />';
+    }
+
+    echo '<div class="be-qms-grid">';
+
+    echo '<div class="be-qms-col-6"><label><strong>Supplier name</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r08_supplier_name" value="'.esc_attr($name).'" required /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Services / Products</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r08_services" value="'.esc_attr($services).'" placeholder="e.g. PV modules, inverters" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Contact name</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r08_contact_name" value="'.esc_attr($contact_name).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Contact email</strong><br/>';
+    echo '<input class="be-qms-input" type="email" name="r08_contact_email" value="'.esc_attr($contact_email).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Contact phone</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r08_contact_phone" value="'.esc_attr($contact_phone).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Approved by</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r08_approved_by" value="'.esc_attr($approved_by).'" /></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Address</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="r08_address">'.esc_textarea($address).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>Approval date</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="r08_approval_date" value="'.esc_attr(self::format_date_for_display($approval_date)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>Review date</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="r08_review_date" value="'.esc_attr(self::format_date_for_display($review_date)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>Status</strong><br/>';
+    echo '<select class="be-qms-select" name="r08_status">';
+    $status_options = ['Approved', 'Conditional', 'Suspended'];
+    echo '<option value="">— Select —</option>';
+    foreach ($status_options as $option) {
+      $selected = ($status === $option) ? 'selected' : '';
+      echo '<option '.$selected.' value="'.esc_attr($option).'">'.esc_html($option).'</option>';
+    }
+    echo '</select></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Notes</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="r08_notes">'.esc_textarea($notes).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Attachments</strong> <span class="be-qms-muted">(optional)</span><br/>';
+    echo '<input type="file" name="attachments[]" multiple /></label></div>';
+
+    if ($is_edit) {
+      echo '<div class="be-qms-col-12"><strong>Existing attachments</strong><br/>';
+      if (!$existing_att_ids) {
+        echo '<div class="be-qms-muted">None.</div>';
+      } else {
+        echo '<div class="be-qms-muted">Tick to remove on save:</div>';
+        echo '<ul style="margin:8px 0 0 18px">';
+        foreach ($existing_att_ids as $aid) {
+          $url = wp_get_attachment_url($aid);
+          $name = get_the_title($aid);
+          if (!$url) continue;
+          echo '<li><label style="display:flex;gap:10px;align-items:center">'
+            .'<input type="checkbox" name="remove_attachments[]" value="'.esc_attr($aid).'">'
+            .'<a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name ?: basename($url)).'</a>'
+            .'</label></li>';
+        }
+        echo '</ul>';
+      }
+      echo '</div>';
+    }
+
+    echo '</div>';
+
+    echo '<div class="be-qms-row" style="margin-top:12px">';
+    echo '<button class="be-qms-btn" type="submit">'.($is_edit ? 'Save changes' : 'Save').'</button>';
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r08_approved_suppliers'], self::portal_url()));
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Cancel</a>';
+    echo '</div>';
+
+    echo '</form>';
+  }
+
+  private static function render_r08_supplier_view($id) {
+    $p = get_post($id);
+    if (!$p || $p->post_type !== self::CPT_RECORD) {
+      echo '<div class="be-qms-muted">Supplier record not found.</div>';
+      return;
+    }
+
+    $name = get_post_meta($id, '_be_qms_r08_supplier_name', true) ?: $p->post_title;
+    $services = get_post_meta($id, '_be_qms_r08_services', true);
+    $contact_name = get_post_meta($id, '_be_qms_r08_contact_name', true);
+    $contact_email = get_post_meta($id, '_be_qms_r08_contact_email', true);
+    $contact_phone = get_post_meta($id, '_be_qms_r08_contact_phone', true);
+    $address = get_post_meta($id, '_be_qms_r08_address', true);
+    $approved_by = get_post_meta($id, '_be_qms_r08_approved_by', true);
+    $approval_date = get_post_meta($id, '_be_qms_r08_approval_date', true);
+    $review_date = get_post_meta($id, '_be_qms_r08_review_date', true);
+    $status = get_post_meta($id, '_be_qms_r08_status', true);
+    $notes = get_post_meta($id, '_be_qms_r08_notes', true);
+    $att_ids = get_post_meta($id, '_be_qms_attachments', true);
+    if (!is_array($att_ids)) $att_ids = [];
+
+    $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r08_approved_suppliers','be_action'=>'edit','id'=>$id], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R08 - Approved Suppliers</h3>';
+    echo '<div class="be-qms-muted">'.esc_html($name ?: '—').'</div></div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a></div>';
+    echo '</div>';
+
+    echo '<div class="be-qms-card" style="margin-top:14px">';
+    echo '<table class="be-qms-table">';
+    echo '<tr><th>Supplier</th><td>'.esc_html($name ?: '—').'</td></tr>';
+    echo '<tr><th>Services / Products</th><td>'.esc_html($services ?: '—').'</td></tr>';
+    echo '<tr><th>Contact name</th><td>'.esc_html($contact_name ?: '—').'</td></tr>';
+    echo '<tr><th>Contact email</th><td>'.esc_html($contact_email ?: '—').'</td></tr>';
+    echo '<tr><th>Contact phone</th><td>'.esc_html($contact_phone ?: '—').'</td></tr>';
+    echo '<tr><th>Address</th><td>'.wpautop(esc_html($address ?: '—')).'</td></tr>';
+    echo '<tr><th>Approved by</th><td>'.esc_html($approved_by ?: '—').'</td></tr>';
+    $display_approval = $approval_date ? self::format_date_for_display($approval_date) : '—';
+    $display_review = $review_date ? self::format_date_for_display($review_date) : '—';
+    echo '<tr><th>Approval date</th><td>'.esc_html($display_approval).'</td></tr>';
+    echo '<tr><th>Review date</th><td>'.esc_html($display_review).'</td></tr>';
+    echo '<tr><th>Status</th><td>'.esc_html($status ?: '—').'</td></tr>';
+    echo '<tr><th>Notes</th><td>'.wpautop(esc_html($notes ?: '—')).'</td></tr>';
+    echo '</table>';
+
+    echo '<h4 style="margin-top:14px">Attachments</h4>';
+    if (!$att_ids) {
+      echo '<div class="be-qms-muted">None.</div>';
+    } else {
+      echo '<ul>';
+      foreach ($att_ids as $aid) {
+        $url = wp_get_attachment_url($aid);
+        $name = get_the_title($aid);
+        if ($url) {
+          echo '<li><a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name ?: basename($url)).'</a></li>';
+        }
+      }
+      echo '</ul>';
+    }
+    echo '</div>';
+
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r08_approved_suppliers'], self::portal_url()));
+    echo '<div class="be-qms-row" style="margin-top:12px"><a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Return to Records</a></div>';
+  }
+
+  // -------------------------
+  // R09 Approved Subcontractors
+  // -------------------------
+
+  private static function render_r09_subcontractor_list() {
+    $add_url = esc_url(add_query_arg(['view'=>'records','type'=>'r09_approved_subcontract','be_action'=>'new'], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div>'
+      .'<h3 style="margin:0">R09 - Approved Subcontractors</h3>'
+      .'<div class="be-qms-muted">Maintain the list of approved subcontractors and link to R07 training.</div>'
+      .'</div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn" href="'.$add_url.'">Add New</a></div>';
+    echo '</div>';
+
+    $subs = self::query_r09_subcontractors();
+
+    echo '<table class="be-qms-table" style="margin-top:12px">';
+    echo '<thead><tr><th>Subcontractor</th><th>Scope / Services</th><th>Review Date</th><th>Status</th><th>R07 Training</th><th>Options</th></tr></thead><tbody>';
+
+    if (!$subs) {
+      echo '<tr><td colspan="6" class="be-qms-muted">No subcontractors yet. Click “Add New”.</td></tr>';
+    } else {
+      foreach ($subs as $sub) {
+        $rid = (int) $sub->ID;
+        $name = get_post_meta($rid, '_be_qms_r09_subcontractor_name', true) ?: $sub->post_title;
+        $services = get_post_meta($rid, '_be_qms_r09_services', true);
+        $review_date = get_post_meta($rid, '_be_qms_r09_review_date', true);
+        $status = get_post_meta($rid, '_be_qms_r09_status', true);
+        $employee_id = (int) get_post_meta($rid, '_be_qms_r09_employee_id', true);
+
+        $view_url = esc_url(add_query_arg(['view'=>'records','type'=>'r09_approved_subcontract','be_action'=>'view','id'=>$rid], self::portal_url()));
+        $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r09_approved_subcontract','be_action'=>'edit','id'=>$rid], self::portal_url()));
+        $del_url  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=record&id='.$rid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$rid)));
+
+        $display_review = $review_date ? self::format_date_for_display($review_date) : '—';
+
+        $training_link = '—';
+        if ($employee_id) {
+          $employee_name = get_the_title($employee_id);
+          if ($employee_name) {
+            $employee_url = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'employee','id'=>$employee_id], self::portal_url()));
+            $training_link = '<a class="be-qms-link" href="'.$employee_url.'">'.esc_html($employee_name).'</a>';
+          }
+        }
+
+        echo '<tr>';
+        echo '<td><a class="be-qms-link" href="'.$view_url.'">'.esc_html($name ?: '—').'</a></td>';
+        echo '<td>'.esc_html($services ?: '—').'</td>';
+        echo '<td>'.esc_html($display_review).'</td>';
+        echo '<td>'.esc_html($status ?: '—').'</td>';
+        echo '<td>'.$training_link.'</td>';
+        echo '<td class="be-qms-row">'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$view_url.'">View</a>'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a>'
+          .'<a class="be-qms-btn be-qms-btn-danger" href="'.$del_url.'" onclick="return confirm(\'Remove this subcontractor?\')">Remove</a>'
+          .'</td>';
+        echo '</tr>';
+      }
+    }
+
+    echo '</tbody></table>';
+  }
+
+  private static function query_r09_subcontractors() {
+    $q = new WP_Query([
+      'post_type' => self::CPT_RECORD,
+      'post_status' => 'publish',
+      'posts_per_page' => 200,
+      'orderby' => 'title',
+      'order' => 'ASC',
+      'tax_query' => [[
+        'taxonomy' => self::TAX_RECORD_TYPE,
+        'field' => 'slug',
+        'terms' => ['r09_approved_subcontract'],
+      ]],
+    ]);
+    return $q->have_posts() ? $q->posts : [];
+  }
+
+  private static function render_r09_subcontractor_form($id) {
+    $is_edit = $id > 0;
+    $p = $is_edit ? get_post($id) : null;
+    if ($is_edit && (!$p || $p->post_type !== self::CPT_RECORD)) {
+      echo '<div class="be-qms-muted">Subcontractor record not found.</div>';
+      return;
+    }
+
+    $name = $is_edit ? (get_post_meta($id, '_be_qms_r09_subcontractor_name', true) ?: $p->post_title) : '';
+    $services = $is_edit ? get_post_meta($id, '_be_qms_r09_services', true) : '';
+    $contact_name = $is_edit ? get_post_meta($id, '_be_qms_r09_contact_name', true) : '';
+    $contact_email = $is_edit ? get_post_meta($id, '_be_qms_r09_contact_email', true) : '';
+    $contact_phone = $is_edit ? get_post_meta($id, '_be_qms_r09_contact_phone', true) : '';
+    $address = $is_edit ? get_post_meta($id, '_be_qms_r09_address', true) : '';
+    $approval_date = $is_edit ? get_post_meta($id, '_be_qms_r09_approval_date', true) : '';
+    $review_date = $is_edit ? get_post_meta($id, '_be_qms_r09_review_date', true) : '';
+    $status = $is_edit ? get_post_meta($id, '_be_qms_r09_status', true) : '';
+    $employee_id = $is_edit ? (int) get_post_meta($id, '_be_qms_r09_employee_id', true) : 0;
+    $notes = $is_edit ? get_post_meta($id, '_be_qms_r09_notes', true) : '';
+    $existing_att_ids = $is_edit ? get_post_meta($id, '_be_qms_attachments', true) : [];
+    if (!is_array($existing_att_ids)) $existing_att_ids = [];
+
+    $employees = get_posts([
+      'post_type' => self::CPT_EMPLOYEE,
+      'post_status' => 'publish',
+      'numberposts' => 200,
+      'orderby' => 'title',
+      'order' => 'ASC',
+    ]);
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R09 - Approved Subcontractors</h3>';
+    echo '<div class="be-qms-muted">'.($is_edit ? 'Edit subcontractor record' : 'Add new subcontractor').'</div></div>';
+    echo '</div>';
+
+    echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" enctype="multipart/form-data" style="margin-top:12px">';
+    echo '<input type="hidden" name="action" value="be_qms_save_record" />';
+    echo '<input type="hidden" name="record_type" value="r09_approved_subcontract" />';
+    wp_nonce_field('be_qms_save_record');
+    if ($is_edit) {
+      echo '<input type="hidden" name="record_id" value="'.esc_attr($id).'" />';
+    }
+
+    echo '<div class="be-qms-grid">';
+
+    echo '<div class="be-qms-col-6"><label><strong>Subcontractor name</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r09_subcontractor_name" value="'.esc_attr($name).'" required /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Scope / Services</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r09_services" value="'.esc_attr($services).'" placeholder="e.g. electrical install, scaffold" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Contact name</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r09_contact_name" value="'.esc_attr($contact_name).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Contact email</strong><br/>';
+    echo '<input class="be-qms-input" type="email" name="r09_contact_email" value="'.esc_attr($contact_email).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Contact phone</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r09_contact_phone" value="'.esc_attr($contact_phone).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Approval date</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="r09_approval_date" value="'.esc_attr(self::format_date_for_display($approval_date)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Address</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="r09_address">'.esc_textarea($address).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>Review date</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="r09_review_date" value="'.esc_attr(self::format_date_for_display($review_date)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>Status</strong><br/>';
+    echo '<select class="be-qms-select" name="r09_status">';
+    $status_options = ['Approved', 'Conditional', 'Suspended'];
+    echo '<option value="">— Select —</option>';
+    foreach ($status_options as $option) {
+      $selected = ($status === $option) ? 'selected' : '';
+      echo '<option '.$selected.' value="'.esc_attr($option).'">'.esc_html($option).'</option>';
+    }
+    echo '</select></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>R07 Training link</strong><br/>';
+    echo '<select class="be-qms-select" name="r09_employee_id">';
+    echo '<option value="0">— Not linked —</option>';
+    if ($employees) {
+      foreach ($employees as $employee) {
+        $selected = ($employee_id && (int) $employee_id === (int) $employee->ID) ? 'selected' : '';
+        echo '<option '.$selected.' value="'.esc_attr($employee->ID).'">'.esc_html($employee->post_title).'</option>';
+      }
+    }
+    echo '</select></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Notes</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="r09_notes">'.esc_textarea($notes).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Attachments</strong> <span class="be-qms-muted">(optional)</span><br/>';
+    echo '<input type="file" name="attachments[]" multiple /></label></div>';
+
+    if ($is_edit) {
+      echo '<div class="be-qms-col-12"><strong>Existing attachments</strong><br/>';
+      if (!$existing_att_ids) {
+        echo '<div class="be-qms-muted">None.</div>';
+      } else {
+        echo '<div class="be-qms-muted">Tick to remove on save:</div>';
+        echo '<ul style="margin:8px 0 0 18px">';
+        foreach ($existing_att_ids as $aid) {
+          $url = wp_get_attachment_url($aid);
+          $name = get_the_title($aid);
+          if (!$url) continue;
+          echo '<li><label style="display:flex;gap:10px;align-items:center">'
+            .'<input type="checkbox" name="remove_attachments[]" value="'.esc_attr($aid).'">'
+            .'<a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name ?: basename($url)).'</a>'
+            .'</label></li>';
+        }
+        echo '</ul>';
+      }
+      echo '</div>';
+    }
+
+    echo '</div>';
+
+    echo '<div class="be-qms-row" style="margin-top:12px">';
+    echo '<button class="be-qms-btn" type="submit">'.($is_edit ? 'Save changes' : 'Save').'</button>';
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r09_approved_subcontract'], self::portal_url()));
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Cancel</a>';
+    echo '</div>';
+
+    echo '</form>';
+  }
+
+  private static function render_r09_subcontractor_view($id) {
+    $p = get_post($id);
+    if (!$p || $p->post_type !== self::CPT_RECORD) {
+      echo '<div class="be-qms-muted">Subcontractor record not found.</div>';
+      return;
+    }
+
+    $name = get_post_meta($id, '_be_qms_r09_subcontractor_name', true) ?: $p->post_title;
+    $services = get_post_meta($id, '_be_qms_r09_services', true);
+    $contact_name = get_post_meta($id, '_be_qms_r09_contact_name', true);
+    $contact_email = get_post_meta($id, '_be_qms_r09_contact_email', true);
+    $contact_phone = get_post_meta($id, '_be_qms_r09_contact_phone', true);
+    $address = get_post_meta($id, '_be_qms_r09_address', true);
+    $approval_date = get_post_meta($id, '_be_qms_r09_approval_date', true);
+    $review_date = get_post_meta($id, '_be_qms_r09_review_date', true);
+    $status = get_post_meta($id, '_be_qms_r09_status', true);
+    $employee_id = (int) get_post_meta($id, '_be_qms_r09_employee_id', true);
+    $notes = get_post_meta($id, '_be_qms_r09_notes', true);
+    $att_ids = get_post_meta($id, '_be_qms_attachments', true);
+    if (!is_array($att_ids)) $att_ids = [];
+
+    $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r09_approved_subcontract','be_action'=>'edit','id'=>$id], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R09 - Approved Subcontractors</h3>';
+    echo '<div class="be-qms-muted">'.esc_html($name ?: '—').'</div></div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a></div>';
+    echo '</div>';
+
+    $training_link = '—';
+    if ($employee_id) {
+      $employee_name = get_the_title($employee_id);
+      if ($employee_name) {
+        $employee_url = esc_url(add_query_arg(['view'=>'records','type'=>'r07_training_matrix','be_action'=>'employee','id'=>$employee_id], self::portal_url()));
+        $training_link = '<a class="be-qms-link" href="'.$employee_url.'">'.esc_html($employee_name).'</a>';
+      }
+    }
+
+    echo '<div class="be-qms-card" style="margin-top:14px">';
+    echo '<table class="be-qms-table">';
+    echo '<tr><th>Subcontractor</th><td>'.esc_html($name ?: '—').'</td></tr>';
+    echo '<tr><th>Scope / Services</th><td>'.esc_html($services ?: '—').'</td></tr>';
+    echo '<tr><th>Contact name</th><td>'.esc_html($contact_name ?: '—').'</td></tr>';
+    echo '<tr><th>Contact email</th><td>'.esc_html($contact_email ?: '—').'</td></tr>';
+    echo '<tr><th>Contact phone</th><td>'.esc_html($contact_phone ?: '—').'</td></tr>';
+    echo '<tr><th>Address</th><td>'.wpautop(esc_html($address ?: '—')).'</td></tr>';
+    $display_approval = $approval_date ? self::format_date_for_display($approval_date) : '—';
+    $display_review = $review_date ? self::format_date_for_display($review_date) : '—';
+    echo '<tr><th>Approval date</th><td>'.esc_html($display_approval).'</td></tr>';
+    echo '<tr><th>Review date</th><td>'.esc_html($display_review).'</td></tr>';
+    echo '<tr><th>Status</th><td>'.esc_html($status ?: '—').'</td></tr>';
+    echo '<tr><th>R07 Training</th><td>'.$training_link.'</td></tr>';
+    echo '<tr><th>Notes</th><td>'.wpautop(esc_html($notes ?: '—')).'</td></tr>';
+    echo '</table>';
+
+    echo '<h4 style="margin-top:14px">Attachments</h4>';
+    if (!$att_ids) {
+      echo '<div class="be-qms-muted">None.</div>';
+    } else {
+      echo '<ul>';
+      foreach ($att_ids as $aid) {
+        $url = wp_get_attachment_url($aid);
+        $name = get_the_title($aid);
+        if ($url) {
+          echo '<li><a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name ?: basename($url)).'</a></li>';
+        }
+      }
+      echo '</ul>';
+    }
+    echo '</div>';
+
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r09_approved_subcontract'], self::portal_url()));
+    echo '<div class="be-qms-row" style="margin-top:12px"><a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Return to Records</a></div>';
+  }
+
+  // -------------------------
   // R07 Training Matrix
   // -------------------------
 
@@ -2818,6 +3395,48 @@ JS;
       $date = $date_raised ?: date('Y-m-d');
       $details = $description;
       $actions = '';
+    } elseif ($type === 'r08_approved_suppliers') {
+      $supplier_name = sanitize_text_field($_POST['r08_supplier_name'] ?? '');
+      $services = sanitize_text_field($_POST['r08_services'] ?? '');
+      $contact_name = sanitize_text_field($_POST['r08_contact_name'] ?? '');
+      $contact_email = sanitize_email($_POST['r08_contact_email'] ?? '');
+      $contact_phone = sanitize_text_field($_POST['r08_contact_phone'] ?? '');
+      $address = sanitize_textarea_field($_POST['r08_address'] ?? '');
+      $approved_by = sanitize_text_field($_POST['r08_approved_by'] ?? '');
+      $approval_date = self::normalize_date_input($_POST['r08_approval_date'] ?? '');
+      $review_date = self::normalize_date_input($_POST['r08_review_date'] ?? '');
+      $status = sanitize_text_field($_POST['r08_status'] ?? '');
+      $notes = sanitize_textarea_field($_POST['r08_notes'] ?? '');
+
+      if (!$supplier_name) {
+        wp_die('Missing supplier name.');
+      }
+
+      $title = $title ?: ('R08 Supplier – ' . $supplier_name);
+      $date = $approval_date ?: date('Y-m-d');
+      $details = $services ?: $notes;
+      $actions = $notes;
+    } elseif ($type === 'r09_approved_subcontract') {
+      $subcontractor_name = sanitize_text_field($_POST['r09_subcontractor_name'] ?? '');
+      $services = sanitize_text_field($_POST['r09_services'] ?? '');
+      $contact_name = sanitize_text_field($_POST['r09_contact_name'] ?? '');
+      $contact_email = sanitize_email($_POST['r09_contact_email'] ?? '');
+      $contact_phone = sanitize_text_field($_POST['r09_contact_phone'] ?? '');
+      $address = sanitize_textarea_field($_POST['r09_address'] ?? '');
+      $approval_date = self::normalize_date_input($_POST['r09_approval_date'] ?? '');
+      $review_date = self::normalize_date_input($_POST['r09_review_date'] ?? '');
+      $status = sanitize_text_field($_POST['r09_status'] ?? '');
+      $employee_id = isset($_POST['r09_employee_id']) ? (int) $_POST['r09_employee_id'] : 0;
+      $notes = sanitize_textarea_field($_POST['r09_notes'] ?? '');
+
+      if (!$subcontractor_name) {
+        wp_die('Missing subcontractor name.');
+      }
+
+      $title = $title ?: ('R09 Subcontractor – ' . $subcontractor_name);
+      $date = $approval_date ?: date('Y-m-d');
+      $details = $services ?: $notes;
+      $actions = $notes;
     } else {
       if (!$title || !$date || !$details) {
         wp_die('Missing required fields.');
@@ -2912,6 +3531,34 @@ JS;
       } else {
         delete_post_meta($pid, '_be_qms_r03_is_template');
       }
+    }
+
+    if ($type === 'r08_approved_suppliers') {
+      update_post_meta($pid, '_be_qms_r08_supplier_name', $supplier_name);
+      update_post_meta($pid, '_be_qms_r08_services', $services);
+      update_post_meta($pid, '_be_qms_r08_contact_name', $contact_name);
+      update_post_meta($pid, '_be_qms_r08_contact_email', $contact_email);
+      update_post_meta($pid, '_be_qms_r08_contact_phone', $contact_phone);
+      update_post_meta($pid, '_be_qms_r08_address', $address);
+      update_post_meta($pid, '_be_qms_r08_approved_by', $approved_by);
+      update_post_meta($pid, '_be_qms_r08_approval_date', $approval_date);
+      update_post_meta($pid, '_be_qms_r08_review_date', $review_date);
+      update_post_meta($pid, '_be_qms_r08_status', $status);
+      update_post_meta($pid, '_be_qms_r08_notes', $notes);
+    }
+
+    if ($type === 'r09_approved_subcontract') {
+      update_post_meta($pid, '_be_qms_r09_subcontractor_name', $subcontractor_name);
+      update_post_meta($pid, '_be_qms_r09_services', $services);
+      update_post_meta($pid, '_be_qms_r09_contact_name', $contact_name);
+      update_post_meta($pid, '_be_qms_r09_contact_email', $contact_email);
+      update_post_meta($pid, '_be_qms_r09_contact_phone', $contact_phone);
+      update_post_meta($pid, '_be_qms_r09_address', $address);
+      update_post_meta($pid, '_be_qms_r09_approval_date', $approval_date);
+      update_post_meta($pid, '_be_qms_r09_review_date', $review_date);
+      update_post_meta($pid, '_be_qms_r09_status', $status);
+      update_post_meta($pid, '_be_qms_r09_employee_id', $employee_id);
+      update_post_meta($pid, '_be_qms_r09_notes', $notes);
     }
 
     if ($project_id > 0) {
