@@ -273,6 +273,20 @@ jQuery(function($){
       });
     }catch(e){}
   });
+
+  function toggleTemplateName(){
+    var $checkbox = $('[name="r03_save_template"]');
+    var $field = $('[name="r03_template_name"]');
+    if (!$checkbox.length || !$field.length) return;
+    if ($checkbox.is(':checked')) {
+      $field.prop('disabled', false);
+    } else {
+      $field.prop('disabled', true);
+    }
+  }
+
+  toggleTemplateName();
+  $(document).on('change', '[name="r03_save_template"]', toggleTemplateName);
 });
 JS;
     wp_add_inline_script('jquery-ui-datepicker', $js);
@@ -2103,6 +2117,22 @@ JS;
     return $q->have_posts() ? $q->posts : [];
   }
 
+  private static function fetch_r03_template_name($template_id) {
+    $template_id = (int) $template_id;
+    if (!$template_id) {
+      return '';
+    }
+    $name = get_post_meta($template_id, '_be_qms_r03_template_name', true);
+    if ($name) {
+      return (string) $name;
+    }
+    $p = get_post($template_id);
+    if ($p && $p->post_type === self::CPT_RECORD) {
+      return (string) $p->post_title;
+    }
+    return '';
+  }
+
   private static function render_r03_purchase_order_form($id) {
     $is_edit = $id > 0;
     $p = $is_edit ? get_post($id) : null;
@@ -2129,9 +2159,10 @@ JS;
     $other_equipment = $is_edit ? get_post_meta($id, '_be_qms_r03_other_equipment', true) : '';
     $linked_project = $is_edit ? (int) get_post_meta($id, self::META_PROJECT_LINK, true) : 0;
     $is_template = $is_edit ? get_post_meta($id, '_be_qms_r03_is_template', true) : '';
+    $is_template_edit = $is_edit && $is_template;
     $template_name = '';
     if ($is_edit && $is_template) {
-      $template_name = get_post_meta($id, '_be_qms_r03_template_name', true) ?: $p->post_title;
+      $template_name = self::fetch_r03_template_name($id);
     }
 
     if (!$is_edit && $template_ok) {
@@ -2147,6 +2178,7 @@ JS;
       $solar_panels_qty = get_post_meta($template_id, '_be_qms_r03_solar_panels_qty', true);
       $battery_model = get_post_meta($template_id, '_be_qms_r03_battery_model', true);
       $other_equipment = get_post_meta($template_id, '_be_qms_r03_other_equipment', true);
+      $template_name = self::fetch_r03_template_name($template_id);
     }
 
     $suppliers = get_posts([
@@ -2198,6 +2230,9 @@ JS;
     echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" enctype="multipart/form-data" style="margin-top:12px">';
     echo '<input type="hidden" name="action" value="be_qms_save_record" />';
     echo '<input type="hidden" name="record_type" value="r03_purchase_order" />';
+    if ($is_template_edit) {
+      echo '<input type="hidden" name="r03_save_template" value="1" />';
+    }
     wp_nonce_field('be_qms_save_record');
     if ($is_edit) {
       echo '<input type="hidden" name="record_id" value="'.esc_attr($id).'" />';
@@ -2262,10 +2297,17 @@ JS;
     }
     echo '</select></label></div>';
 
-    $template_checked = $is_template ? 'checked' : '';
-    echo '<div class="be-qms-col-12"><label><input type="checkbox" name="r03_save_template" value="1" '.$template_checked.' /> Save this purchase order as a template</label></div>';
-    echo '<div class="be-qms-col-12"><label><strong>Template name</strong> <span class="be-qms-muted">(used when saving as a template)</span><br/>';
-    echo '<input class="be-qms-input" type="text" name="r03_template_name" value="'.esc_attr($template_name).'" placeholder="e.g. Morgan Sindall kit list" /></label></div>';
+    if (!$is_template_edit) {
+      $template_checked = $is_template ? 'checked' : '';
+      $template_disabled = $is_template ? '' : 'disabled';
+      echo '<div class="be-qms-col-12"><label><input type="checkbox" name="r03_save_template" value="1" '.$template_checked.' /> Save this purchase order as a template</label></div>';
+      echo '<div class="be-qms-col-12"><label><strong>Template name</strong> <span class="be-qms-muted">(used when saving as a template)</span><br/>';
+      echo '<input class="be-qms-input" type="text" name="r03_template_name" value="'.esc_attr($template_name).'" placeholder="e.g. Morgan Sindall kit list" '.$template_disabled.' /></label></div>';
+      echo '<input type="hidden" name="r03_template_toggle" value="1" />';
+    } else {
+      echo '<div class="be-qms-col-12 be-qms-muted">Template name can only be edited from the “Purchase Order Templates” list.</div>';
+      echo '<input type="hidden" name="r03_template_toggle" value="0" />';
+    }
 
     echo '</div>';
 
@@ -3753,14 +3795,15 @@ JS;
       $solar_panels_qty = sanitize_text_field($_POST['r03_solar_panels_qty'] ?? '');
       $battery_model = sanitize_text_field($_POST['r03_battery_model'] ?? '');
       $other_equipment = sanitize_textarea_field($_POST['r03_other_equipment'] ?? '');
-      $save_template = !empty($_POST['r03_save_template']) ? '1' : '';
+      $template_toggle = !empty($_POST['r03_template_toggle']);
+      $save_template = $template_toggle && !empty($_POST['r03_save_template']) ? '1' : '';
       $template_name = sanitize_text_field($_POST['r03_template_name'] ?? '');
 
       $title_bits = array_filter([
         $po_number ? ('PO ' . $po_number) : '',
         $supplier_name ?: '',
       ]);
-      if ($save_template && $template_name) {
+      if ($template_toggle && $save_template && $template_name) {
         $title = 'R03 Template – ' . $template_name;
       } else {
         $title = $title ?: ('R03 Purchase Order' . ($title_bits ? (' – ' . implode(' • ', $title_bits)) : ''));
