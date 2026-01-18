@@ -505,8 +505,23 @@ JS;
         'type' => 'External',
       ],
       [
-        'title' => 'QMS Template – Document & Data Control',
-        'url' => 'https://mcscertified.com/wp-content/uploads/2025/09/QMS-Template-Document-Data-Control.xls',
+        'title' => 'MCS-001-01',
+        'url' => 'https://mcscertified.com/wp-content/uploads/2024/11/MCS-001-1-Issue-4.2_Final.pdf',
+        'type' => 'External',
+      ],
+      [
+        'title' => 'MCS-001-02',
+        'url' => 'https://mcscertified.com/wp-content/uploads/2024/11/MCS-001-1-Issue-4.2_Final.pdf',
+        'type' => 'External',
+      ],
+      [
+        'title' => 'MIS 3002 (Solar PV)',
+        'url' => 'https://mcscertified.com/',
+        'type' => 'External',
+      ],
+      [
+        'title' => 'MIS 3012 (Battery)',
+        'url' => 'https://mcscertified.com/',
         'type' => 'External',
       ],
     ];
@@ -571,7 +586,7 @@ JS;
     echo '<table class="be-qms-table">';
     echo '<thead><tr><th>Tab</th><th>Purpose</th></tr></thead><tbody>';
     echo '<tr><td>External Docs</td><td>Documents held externally (not produced by the company).</td></tr>';
-    echo '<tr><td>Accessed Docs</td><td>Information accessed online but not held by the company.</td></tr>';
+    echo '<tr><td>Accessed Docs</td><td>Information accessed online but not held by the company. <a class="be-qms-link" target="_blank" href="http://www.planningportal.gov.uk/buildingregulations/approveddocuments/">Planning Portal Approved Documents</a></td></tr>';
     echo '<tr><td>Live Company Docs</td><td>Company-controlled procedures and standard forms.</td></tr>';
     echo '<tr><td>Old Company Docs</td><td>Superseded company documents no longer in use.</td></tr>';
     echo '<tr><td>Software</td><td>Software used for generating critical data.</td></tr>';
