@@ -474,6 +474,7 @@ JS;
     $view = sanitize_key((string)$view);
     // Backwards compatible alias
     if ($view === 'installations') return 'projects';
+    if ($view === 'assessment') return 'references';
     return $view;
   }
 
@@ -487,8 +488,8 @@ JS;
       'projects'    => 'Projects',
       'records'     => 'Records',
       'templates'   => 'Templates',
+      'manual'      => 'Manual',
       'references'  => 'References',
-      'assessment'  => 'How to pass assessment',
     ];
     if (!isset($views[$view])) $view = 'records';
 
@@ -512,6 +513,8 @@ JS;
       self::render_projects();
     } elseif ($view === 'templates') {
       self::render_templates();
+    } elseif ($view === 'manual') {
+      self::render_manual();
     } elseif ($view === 'references') {
       self::render_references();
     } else {
@@ -538,9 +541,24 @@ JS;
     echo '</div>';
   }
 
-  private static function render_references() {
+  private static function render_manual() {
     $manual_docx = esc_url(add_query_arg(['be_qms_ref'=>'manual_docx'], self::portal_url()));
-    $manual_pdf  = esc_url(add_query_arg(['be_qms_ref'=>'manual_pdf'], self::portal_url()));
+    $manual_pdf  = esc_url(add_query_arg(['be_qms_ref'=>'manual_pdf', 'be_qms_inline' => '1'], self::portal_url()));
+
+    echo '<div class="be-qms-card-inner">';
+    echo '<h3>Documented Procedure Manual</h3>';
+    echo '<p class="be-qms-muted">Use this as your core documented procedure manual for assessments and internal control.</p>';
+    echo '<div class="be-qms-row" style="margin-bottom:12px">';
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_docx.'">Download DOCX</a>';
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_pdf.'" target="_blank">Open PDF</a>';
+    echo '</div>';
+    echo '<div style="border:1px solid rgba(148,163,184,.5);border-radius:10px;overflow:hidden;height:720px">';
+    echo '<iframe title="Documented Procedure Manual" src="'.$manual_pdf.'" style="width:100%;height:100%;border:0"></iframe>';
+    echo '</div>';
+    echo '</div>';
+  }
+
+  private static function render_references() {
     $external_docs = [
       [
         'title' => 'NAPIT Assessment Checklist (v3)',
@@ -594,15 +612,7 @@ JS;
     echo '<p class="be-qms-muted">Keep your profile up to date, then store evidence as Records (R01-R11) and link items to Projects where relevant.</p>';
 
     echo '<div class="be-qms-grid">';
-    echo '<div class="be-qms-col-6">';
-    echo '<h4 style="margin-top:0">Documented Procedure Manual</h4>';
-    echo '<p class="be-qms-muted">Use this as your core documented procedure manual for assessments and internal control.</p>';
-    echo '<div class="be-qms-row">'
-      .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_docx.'">Download DOCX</a>'
-      .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_pdf.'" target="_blank">Open PDF</a>'
-      .'</div>';
-    echo '</div>';
-    echo '<div class="be-qms-col-6">';
+    echo '<div class="be-qms-col-12">';
     echo '<h4 style="margin-top:0">Standards &amp; checklists</h4>';
     echo '<div class="be-qms-muted">Primary references for NAPIT, EAS, and MCS.</div>';
     $grouped_docs = [];
@@ -5082,9 +5092,11 @@ JS;
       if (empty($map[$key])) wp_die('Unknown reference file');
       $file = plugin_dir_path(__FILE__) . $map[$key];
       if (!file_exists($file)) wp_die('File missing');
-      $mime = ($key === 'manual_pdf') ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      $is_pdf = ($key === 'manual_pdf');
+      $mime = $is_pdf ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
       header('Content-Type: ' . $mime);
-      header('Content-Disposition: attachment; filename="' . basename($file) . '"');
+      $disposition = (!empty($_GET['be_qms_inline']) && $is_pdf) ? 'inline' : 'attachment';
+      header('Content-Disposition: ' . $disposition . '; filename="' . basename($file) . '"');
       header('Content-Length: ' . filesize($file));
       readfile($file);
       exit;
