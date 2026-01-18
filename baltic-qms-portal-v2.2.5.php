@@ -610,6 +610,7 @@ JS;
     $is_r07 = ($type === 'r07_training_matrix');
     $is_r04 = ($type === 'r04_tool_calibration');
     $is_r06 = ($type === 'r06_customer_complaints');
+    $is_r02 = ($type === 'r02_capa');
 
     // --- Action pages (no sidebar) ---
     if ($is_r07 && in_array($action, ['new_employee','edit_employee','employee','add_skill','edit_skill'], true)) {
@@ -628,6 +629,21 @@ JS;
       }
       if ($action === 'view' && !empty($_GET['id'])) {
         self::render_r04_tool_view((int) $_GET['id']);
+        return;
+      }
+    }
+
+    if ($is_r02) {
+      if ($action === 'new') {
+        self::render_r02_capa_form(0);
+        return;
+      }
+      if ($action === 'edit' && !empty($_GET['id'])) {
+        self::render_r02_capa_form((int) $_GET['id']);
+        return;
+      }
+      if ($action === 'view' && !empty($_GET['id'])) {
+        self::render_r02_capa_view((int) $_GET['id']);
         return;
       }
     }
@@ -684,6 +700,12 @@ JS;
 
     if ($is_r04) {
       self::render_r04_tool_list();
+      echo '</div></div>';
+      return;
+    }
+
+    if ($is_r02) {
+      self::render_r02_capa_list();
       echo '</div></div>';
       return;
     }
@@ -1491,6 +1513,281 @@ JS;
   }
 
   // -------------------------
+  // R02 CAPA
+  // -------------------------
+
+  private static function render_r02_capa_list() {
+    $add_url = esc_url(add_query_arg(['view'=>'records','type'=>'r02_capa','be_action'=>'new'], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div>'
+      .'<h3 style="margin:0">Corrective &amp; Preventive Action Record</h3>'
+      .'<div class="be-qms-muted">Your existing non conformities are displayed below. Click “Add New” to add a new corrective and preventative action.</div>'
+      .'</div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn" href="'.$add_url.'">Add New</a></div>';
+    echo '</div>';
+
+    $records = self::query_r02_capa();
+
+    echo '<table class="be-qms-table" style="margin-top:12px">';
+    echo '<thead><tr><th>Date</th><th>NCR No</th><th>Source</th><th>Action Type</th><th>Date Closed</th><th>Status</th><th>Options</th></tr></thead><tbody>';
+
+    if (!$records) {
+      echo '<tr><td colspan="7" class="be-qms-muted">No CAPA records yet. Click “Add New”.</td></tr>';
+    } else {
+      foreach ($records as $record) {
+        $rid = (int) $record->ID;
+        $date = get_post_meta($rid, '_be_qms_capa_date', true);
+        $ncr = get_post_meta($rid, '_be_qms_capa_ncr_no', true);
+        $source = get_post_meta($rid, '_be_qms_capa_source', true);
+        $action_type = get_post_meta($rid, '_be_qms_capa_action_type', true);
+        $date_closed = get_post_meta($rid, '_be_qms_capa_date_closed', true);
+        $status = get_post_meta($rid, '_be_qms_capa_status', true);
+
+        $view_url = esc_url(add_query_arg(['view'=>'records','type'=>'r02_capa','be_action'=>'view','id'=>$rid], self::portal_url()));
+        $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r02_capa','be_action'=>'edit','id'=>$rid], self::portal_url()));
+        $del_url  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=record&id='.$rid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$rid)));
+
+        $display_date = $date ? self::format_date_for_display($date) : '—';
+        $display_closed = $date_closed ? self::format_date_for_display($date_closed) : '—';
+
+        echo '<tr>';
+        echo '<td>'.esc_html($display_date).'</td>';
+        echo '<td>'.esc_html($ncr ?: '—').'</td>';
+        echo '<td>'.esc_html($source ?: '—').'</td>';
+        echo '<td>'.esc_html($action_type ?: '—').'</td>';
+        echo '<td>'.esc_html($display_closed).'</td>';
+        echo '<td>'.esc_html($status ?: '—').'</td>';
+        echo '<td class="be-qms-row">'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$view_url.'">View</a>'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a>'
+          .'<a class="be-qms-btn be-qms-btn-danger" href="'.$del_url.'" onclick="return confirm(\'Remove this CAPA record?\')">Remove</a>'
+          .'</td>';
+        echo '</tr>';
+      }
+    }
+
+    echo '</tbody></table>';
+  }
+
+  private static function query_r02_capa() {
+    $q = new WP_Query([
+      'post_type' => self::CPT_RECORD,
+      'post_status' => 'publish',
+      'posts_per_page' => 200,
+      'orderby' => 'date',
+      'order' => 'DESC',
+      'tax_query' => [[
+        'taxonomy' => self::TAX_RECORD_TYPE,
+        'field' => 'slug',
+        'terms' => ['r02_capa'],
+      ]],
+    ]);
+    return $q->have_posts() ? $q->posts : [];
+  }
+
+  private static function render_r02_capa_form($id) {
+    $is_edit = $id > 0;
+    $p = $is_edit ? get_post($id) : null;
+    if ($is_edit && (!$p || $p->post_type !== self::CPT_RECORD)) {
+      echo '<div class="be-qms-muted">Record not found.</div>';
+      return;
+    }
+
+    $date = $is_edit ? get_post_meta($id, '_be_qms_capa_date', true) : '';
+    $ncr_no = $is_edit ? get_post_meta($id, '_be_qms_capa_ncr_no', true) : '';
+    $source = $is_edit ? get_post_meta($id, '_be_qms_capa_source', true) : '';
+    $action_type = $is_edit ? get_post_meta($id, '_be_qms_capa_action_type', true) : '';
+    $issued_to = $is_edit ? get_post_meta($id, '_be_qms_capa_issued_to', true) : '';
+    $no_days = $is_edit ? get_post_meta($id, '_be_qms_capa_no_days', true) : '';
+    $date_closed = $is_edit ? get_post_meta($id, '_be_qms_capa_date_closed', true) : '';
+    $status = $is_edit ? get_post_meta($id, '_be_qms_capa_status', true) : '';
+    $closed_by = $is_edit ? get_post_meta($id, '_be_qms_capa_closed_by', true) : '';
+    $details_issue = $is_edit ? get_post_meta($id, '_be_qms_capa_details_issue', true) : '';
+    $summary_action = $is_edit ? get_post_meta($id, '_be_qms_capa_summary_action', true) : '';
+    $root_cause = $is_edit ? get_post_meta($id, '_be_qms_capa_root_cause', true) : '';
+    $prevent_recurrence = $is_edit ? get_post_meta($id, '_be_qms_capa_prevent_recurrence', true) : '';
+    $existing_att_ids = $is_edit ? get_post_meta($id, '_be_qms_attachments', true) : [];
+    if (!is_array($existing_att_ids)) $existing_att_ids = [];
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R02 - Corrective &amp; Preventive Action Record</h3></div>';
+    echo '</div>';
+
+    echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" enctype="multipart/form-data" style="margin-top:12px">';
+    echo '<input type="hidden" name="action" value="be_qms_save_record" />';
+    echo '<input type="hidden" name="record_type" value="r02_capa" />';
+    wp_nonce_field('be_qms_save_record');
+    if ($is_edit) {
+      echo '<input type="hidden" name="record_id" value="'.esc_attr($id).'" />';
+    }
+
+    echo '<h4 style="margin-top:8px">Source Details</h4>';
+    echo '<div class="be-qms-grid">';
+
+    echo '<div class="be-qms-col-6"><label><strong>Date</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="capa_date" value="'.esc_attr(self::format_date_for_display($date)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>NCR No (if applicable)</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="capa_ncr_no" value="'.esc_attr($ncr_no).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Source</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="capa_source" value="'.esc_attr($source).'" placeholder="e.g. Management Review" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Preventive or Corrective?</strong><br/>';
+    echo '<select class="be-qms-select" name="capa_action_type">';
+    $action_options = ['Preventative', 'Corrective', 'Other'];
+    echo '<option value="">— Select —</option>';
+    foreach ($action_options as $option) {
+      $selected = ($action_type === $option) ? 'selected' : '';
+      echo '<option '.$selected.' value="'.esc_attr($option).'">'.esc_html($option).'</option>';
+    }
+    echo '</select></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Issued To</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="capa_issued_to" value="'.esc_attr($issued_to).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>No of Days</strong><br/>';
+    echo '<input class="be-qms-input" type="number" min="0" name="capa_no_days" value="'.esc_attr($no_days).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Date Closed</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="capa_date_closed" value="'.esc_attr(self::format_date_for_display($date_closed)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Status (Open/Closed)</strong></label>';
+    $status_open = ($status === 'Open') ? 'checked' : '';
+    $status_closed = ($status === 'Closed') ? 'checked' : '';
+    echo '<div class="be-qms-row" style="gap:28px;margin-top:6px">';
+    echo '<label><input type="radio" name="capa_status" value="Open" '.$status_open.'> Open</label>';
+    echo '<label><input type="radio" name="capa_status" value="Closed" '.$status_closed.'> Closed</label>';
+    echo '</div></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Closed By</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="capa_closed_by" value="'.esc_attr($closed_by).'" /></label></div>';
+
+    echo '</div>';
+
+    echo '<h4 style="margin-top:16px">Action Details</h4>';
+    echo '<div class="be-qms-grid">';
+    echo '<div class="be-qms-col-12"><label><strong>Details of Issue</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="capa_details_issue">'.esc_textarea($details_issue).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Summary of Action Taken</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="capa_summary_action">'.esc_textarea($summary_action).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Root Cause</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="capa_root_cause">'.esc_textarea($root_cause).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>What can be done to prevent a recurrence?</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="capa_prevent_recurrence">'.esc_textarea($prevent_recurrence).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Attachments</strong> <span class="be-qms-muted">(optional)</span><br/>';
+    echo '<input type="file" name="attachments[]" multiple /></label></div>';
+
+    if ($is_edit) {
+      echo '<div class="be-qms-col-12"><strong>Existing attachments</strong><br/>';
+      if (!$existing_att_ids) {
+        echo '<div class="be-qms-muted">None.</div>';
+      } else {
+        echo '<div class="be-qms-muted">Tick to remove on save:</div>';
+        echo '<ul style="margin:8px 0 0 18px">';
+        foreach ($existing_att_ids as $aid) {
+          $url = wp_get_attachment_url($aid);
+          $name = get_the_title($aid);
+          if (!$url) continue;
+          echo '<li><label style="display:flex;gap:10px;align-items:center">'
+            .'<input type="checkbox" name="remove_attachments[]" value="'.esc_attr($aid).'">'
+            .'<a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name ?: basename($url)).'</a>'
+            .'</label></li>';
+        }
+        echo '</ul>';
+      }
+      echo '</div>';
+    }
+
+    echo '</div>';
+
+    echo '<div class="be-qms-row" style="margin-top:12px">';
+    echo '<button class="be-qms-btn" type="submit">'.($is_edit ? 'Save changes' : 'Save').'</button>';
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r02_capa'], self::portal_url()));
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Return to Records</a>';
+    echo '</div>';
+
+    echo '</form>';
+  }
+
+  private static function render_r02_capa_view($id) {
+    $p = get_post($id);
+    if (!$p || $p->post_type !== self::CPT_RECORD) {
+      echo '<div class="be-qms-muted">Record not found.</div>';
+      return;
+    }
+
+    $date = get_post_meta($id, '_be_qms_capa_date', true);
+    $ncr_no = get_post_meta($id, '_be_qms_capa_ncr_no', true);
+    $source = get_post_meta($id, '_be_qms_capa_source', true);
+    $action_type = get_post_meta($id, '_be_qms_capa_action_type', true);
+    $issued_to = get_post_meta($id, '_be_qms_capa_issued_to', true);
+    $no_days = get_post_meta($id, '_be_qms_capa_no_days', true);
+    $date_closed = get_post_meta($id, '_be_qms_capa_date_closed', true);
+    $status = get_post_meta($id, '_be_qms_capa_status', true);
+    $closed_by = get_post_meta($id, '_be_qms_capa_closed_by', true);
+    $details_issue = get_post_meta($id, '_be_qms_capa_details_issue', true);
+    $summary_action = get_post_meta($id, '_be_qms_capa_summary_action', true);
+    $root_cause = get_post_meta($id, '_be_qms_capa_root_cause', true);
+    $prevent_recurrence = get_post_meta($id, '_be_qms_capa_prevent_recurrence', true);
+    $att_ids = get_post_meta($id, '_be_qms_attachments', true);
+    if (!is_array($att_ids)) $att_ids = [];
+
+    $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r02_capa','be_action'=>'edit','id'=>$id], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R02 - Corrective &amp; Preventive Action Record</h3>';
+    echo '<div class="be-qms-muted">'.esc_html(self::format_date_for_display($date) ?: '—').'</div></div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a></div>';
+    echo '</div>';
+
+    echo '<div class="be-qms-card" style="margin-top:14px">';
+    echo '<table class="be-qms-table">';
+    echo '<tr><th>Date</th><td>'.esc_html(self::format_date_for_display($date) ?: '—').'</td></tr>';
+    echo '<tr><th>NCR No</th><td>'.esc_html($ncr_no ?: '—').'</td></tr>';
+    echo '<tr><th>Source</th><td>'.esc_html($source ?: '—').'</td></tr>';
+    echo '<tr><th>Action Type</th><td>'.esc_html($action_type ?: '—').'</td></tr>';
+    echo '<tr><th>Issued To</th><td>'.esc_html($issued_to ?: '—').'</td></tr>';
+    echo '<tr><th>No of Days</th><td>'.esc_html($no_days ?: '—').'</td></tr>';
+    echo '<tr><th>Date Closed</th><td>'.esc_html(self::format_date_for_display($date_closed) ?: '—').'</td></tr>';
+    echo '<tr><th>Status</th><td>'.esc_html($status ?: '—').'</td></tr>';
+    echo '<tr><th>Closed By</th><td>'.esc_html($closed_by ?: '—').'</td></tr>';
+    echo '</table>';
+
+    echo '<h4 style="margin-top:14px">Action Details</h4>';
+    echo '<div class="be-qms-grid">';
+    echo '<div class="be-qms-col-12"><strong>Details of Issue</strong><br/>'.wpautop(esc_html($details_issue)).'</div>';
+    echo '<div class="be-qms-col-12"><strong>Summary of Action Taken</strong><br/>'.wpautop(esc_html($summary_action)).'</div>';
+    echo '<div class="be-qms-col-12"><strong>Root Cause</strong><br/>'.wpautop(esc_html($root_cause)).'</div>';
+    echo '<div class="be-qms-col-12"><strong>Prevent a recurrence</strong><br/>'.wpautop(esc_html($prevent_recurrence)).'</div>';
+    echo '</div>';
+
+    echo '<h4 style="margin-top:14px">Attachments</h4>';
+    if (!$att_ids) {
+      echo '<div class="be-qms-muted">None.</div>';
+    } else {
+      echo '<ul>';
+      foreach ($att_ids as $aid) {
+        $url = wp_get_attachment_url($aid);
+        $name = get_the_title($aid);
+        if ($url) {
+          echo '<li><a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name ?: basename($url)).'</a></li>';
+        }
+      }
+      echo '</ul>';
+    }
+    echo '</div>';
+
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r02_capa'], self::portal_url()));
+    echo '<div class="be-qms-row" style="margin-top:12px"><a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Return to Records</a></div>';
+  }
+
+  // -------------------------
   // R07 Training Matrix
   // -------------------------
 
@@ -1905,6 +2202,30 @@ JS;
       $date = $complaint_date ?: date('Y-m-d');
       $details = $nature;
       $actions = sanitize_textarea_field($_POST['actions_taken'] ?? '');
+    } elseif ($type === 'r02_capa') {
+      $capa_date = self::normalize_date_input($_POST['capa_date'] ?? '');
+      $ncr_no = sanitize_text_field($_POST['capa_ncr_no'] ?? '');
+      $source = sanitize_text_field($_POST['capa_source'] ?? '');
+      $action_type = sanitize_text_field($_POST['capa_action_type'] ?? '');
+      $issued_to = sanitize_text_field($_POST['capa_issued_to'] ?? '');
+      $no_days = sanitize_text_field($_POST['capa_no_days'] ?? '');
+      $date_closed = self::normalize_date_input($_POST['capa_date_closed'] ?? '');
+      $status = sanitize_text_field($_POST['capa_status'] ?? '');
+      $closed_by = sanitize_text_field($_POST['capa_closed_by'] ?? '');
+      $details_issue = sanitize_textarea_field($_POST['capa_details_issue'] ?? '');
+      $summary_action = sanitize_textarea_field($_POST['capa_summary_action'] ?? '');
+      $root_cause = sanitize_textarea_field($_POST['capa_root_cause'] ?? '');
+      $prevent_recurrence = sanitize_textarea_field($_POST['capa_prevent_recurrence'] ?? '');
+
+      $title_bits = array_filter([
+        $ncr_no ? ('NCR ' . $ncr_no) : '',
+        $capa_date ? self::format_date_for_display($capa_date) : '',
+      ]);
+      $title = $title ?: ('R02 CAPA' . ($title_bits ? (' – ' . implode(' • ', $title_bits)) : ''));
+
+      $date = $capa_date ?: date('Y-m-d');
+      $details = $details_issue;
+      $actions = $summary_action;
     } else {
       if (!$title || !$date || !$details) {
         wp_die('Missing required fields.');
@@ -1963,6 +2284,22 @@ JS;
       update_post_meta($pid, '_be_qms_r06_reported_by', sanitize_text_field($_POST['reported_by'] ?? ''));
       update_post_meta($pid, '_be_qms_r06_date_closed', $date_closed);
       update_post_meta($pid, '_be_qms_r06_reported_title', sanitize_text_field($_POST['reported_title'] ?? ''));
+    }
+
+    if ($type === 'r02_capa') {
+      update_post_meta($pid, '_be_qms_capa_date', $capa_date);
+      update_post_meta($pid, '_be_qms_capa_ncr_no', $ncr_no);
+      update_post_meta($pid, '_be_qms_capa_source', $source);
+      update_post_meta($pid, '_be_qms_capa_action_type', $action_type);
+      update_post_meta($pid, '_be_qms_capa_issued_to', $issued_to);
+      update_post_meta($pid, '_be_qms_capa_no_days', $no_days);
+      update_post_meta($pid, '_be_qms_capa_date_closed', $date_closed);
+      update_post_meta($pid, '_be_qms_capa_status', $status);
+      update_post_meta($pid, '_be_qms_capa_closed_by', $closed_by);
+      update_post_meta($pid, '_be_qms_capa_details_issue', $details_issue);
+      update_post_meta($pid, '_be_qms_capa_summary_action', $summary_action);
+      update_post_meta($pid, '_be_qms_capa_root_cause', $root_cause);
+      update_post_meta($pid, '_be_qms_capa_prevent_recurrence', $prevent_recurrence);
     }
 
     if ($project_id > 0) {
