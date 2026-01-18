@@ -511,18 +511,24 @@ JS;
       ],
       [
         'title' => 'MCS-001-02',
-        'url' => 'https://mcscertified.com/wp-content/uploads/2024/11/MCS-001-1-Issue-4.2_Final.pdf',
+        'url' => 'https://mcscertified.com/wp-content/uploads/2025/01/MCS-001-2-Issue-4.2_Final.pdf',
         'type' => 'External',
       ],
       [
         'title' => 'MIS 3002 (Solar PV)',
-        'url' => 'https://mcscertified.com/',
+        'url' => 'https://mcscertified.com/wp-content/uploads/2025/02/MIS-3002_Solar-PV-Systems-V5.0-Final-for-publication.pdf',
         'type' => 'External',
       ],
       [
         'title' => 'MIS 3012 (Battery)',
-        'url' => 'https://mcscertified.com/',
+        'url' => 'https://mcscertified.com/wp-content/uploads/2025/02/MIS-3012_Battery-Storage-Systems-V1.0.pdf',
         'type' => 'External',
+      ],
+    ];
+    $accessed_docs = [
+      [
+        'title' => 'Planning Portal Approved Documents',
+        'url' => 'http://www.planningportal.gov.uk/buildingregulations/approveddocuments/',
       ],
     ];
 
@@ -570,8 +576,13 @@ JS;
     echo '<h4>Document &amp; Data Control</h4>';
     echo '<p class="be-qms-muted">Track external documents and the internal documents/data you control. Use the template to maintain your live document register.</p>';
 
+    echo '<div class="be-qms-row" style="margin-bottom:10px">';
+    echo '<a class="be-qms-tab is-active" href="#external-docs">External Docs</a>';
+    echo '<a class="be-qms-tab" href="#accessed-docs">Accessed Docs</a>';
+    echo '</div>';
+
     echo '<div class="be-qms-grid">';
-    echo '<div class="be-qms-col-6">';
+    echo '<div class="be-qms-col-6" id="external-docs">';
     echo '<h4 style="margin-top:0">External documents</h4>';
     echo '<ul>';
     foreach ($external_docs as $doc) {
@@ -581,7 +592,7 @@ JS;
     echo '<div class="be-qms-muted">Add any other externally controlled documents your assessor expects you to reference.</div>';
     echo '</div>';
 
-    echo '<div class="be-qms-col-6">';
+    echo '<div class="be-qms-col-6" id="accessed-docs">';
     echo '<h4 style="margin-top:0">Document register sections</h4>';
     echo '<table class="be-qms-table">';
     echo '<thead><tr><th>Tab</th><th>Purpose</th></tr></thead><tbody>';
@@ -593,6 +604,12 @@ JS;
     echo '<tr><td>Data Storage</td><td>Where company-generated data is stored.</td></tr>';
     echo '<tr><td>Backup Info</td><td>Backup frequency and backup locations.</td></tr>';
     echo '</tbody></table>';
+    echo '<h4 style="margin-top:14px">Accessed documents</h4>';
+    echo '<ul>';
+    foreach ($accessed_docs as $doc) {
+      echo '<li><a class="be-qms-link" target="_blank" href="'.esc_url($doc['url']).'">'.esc_html($doc['title']).'</a></li>';
+    }
+    echo '</ul>';
     echo '</div>';
     echo '</div>';
 
@@ -1473,9 +1490,17 @@ JS;
     $date_purchased = $is_edit ? get_post_meta($id, '_be_qms_tool_date_purchased', true) : '';
     $date_calibrated = $is_edit ? get_post_meta($id, '_be_qms_tool_date_calibrated', true) : '';
     $next_due = $is_edit ? get_post_meta($id, '_be_qms_tool_next_due', true) : '';
+    $linked_project = $is_edit ? (int) get_post_meta($id, self::META_PROJECT_LINK, true) : 0;
 
     $existing_att_ids = $is_edit ? get_post_meta($id, '_be_qms_attachments', true) : [];
     if (!is_array($existing_att_ids)) $existing_att_ids = [];
+    $projects = get_posts([
+      'post_type' => self::CPT_PROJECT,
+      'post_status' => 'publish',
+      'numberposts' => 200,
+      'orderby' => 'date',
+      'order' => 'DESC',
+    ]);
 
     echo '<div class="be-qms-row" style="justify-content:space-between">';
     echo '<div><h3 style="margin:0">R04 - Tool Calibration</h3>';
@@ -1504,6 +1529,8 @@ JS;
     echo '<div class="be-qms-col-6"><label><strong>Description / Notes</strong><br/>';
     echo '<input class="be-qms-input" type="text" name="tool_description" value="'.esc_attr($description).'" /></label></div>';
 
+    echo '<div class="be-qms-col-12" style="height:6px"></div>';
+
     echo '<div class="be-qms-col-4"><label><strong>Date Purchased</strong><br/>';
     echo '<input class="be-qms-input be-qms-date" type="text" name="tool_date_purchased" value="'.esc_attr(self::format_date_for_display($date_purchased)).'" placeholder="DD/MM/YYYY" /></label></div>';
 
@@ -1512,6 +1539,17 @@ JS;
 
     echo '<div class="be-qms-col-4"><label><strong>Next Calibration Date</strong><br/>';
     echo '<input class="be-qms-input be-qms-date" type="text" name="tool_next_due" value="'.esc_attr(self::format_date_for_display($next_due)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Linked project</strong> <span class="be-qms-muted">(optional)</span><br/>';
+    echo '<select class="be-qms-select" name="project_id">';
+    echo '<option value="0">— Company record (not tied to a job) —</option>';
+    if (!empty($projects)) {
+      foreach ($projects as $pr) {
+        $sel = ($linked_project && (int) $linked_project === (int) $pr->ID) ? 'selected' : '';
+        echo '<option '.$sel.' value="'.esc_attr($pr->ID).'">'.esc_html($pr->post_title).'</option>';
+      }
+    }
+    echo '</select></label></div>';
 
     echo '<div class="be-qms-col-12"><label><strong>Upload evidence</strong> <span class="be-qms-muted">(optional)</span><br/>';
     echo '<input type="file" name="attachments[]" multiple /></label></div>';
