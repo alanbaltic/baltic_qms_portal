@@ -2,14 +2,14 @@
 /**
  * Plugin Name: Baltic QMS Portal
  * Description: Staff-only QMS portal for recording MCS evidence (projects + records) with DOC export and print-to-PDF.
- * Version: 2.2.7
+ * Version: 2.2.8
  * Author: Baltic Electric
  */
 
 if (!defined('ABSPATH')) { exit; }
 
 class BE_QMS_Portal {
-  const VERSION = '2.2.7';
+  const VERSION = '2.2.8';
   const CPT_RECORD = 'be_qms_record';
   const CPT_PROJECT = 'be_qms_install'; // keep CPT key for backwards compatibility
   const TAX_RECORD_TYPE = 'be_qms_record_type';
@@ -1014,6 +1014,7 @@ JS;
     $actions = '';
     $selected_type = $pref_type;
     $linked_project = $pref_project;
+    $linked_subcontractor = 0;
     $existing_att_ids = [];
 
     if ($is_edit) {
@@ -1031,6 +1032,7 @@ JS;
       $details = (string) get_post_meta($id, '_be_qms_details', true);
       $actions = (string) get_post_meta($id, '_be_qms_actions', true);
       $linked_project = (int) get_post_meta($id, self::META_PROJECT_LINK, true);
+      $linked_subcontractor = (int) get_post_meta($id, '_be_qms_subcontractor_id', true);
       $existing_att_ids = get_post_meta($id, '_be_qms_attachments', true);
       if (!is_array($existing_att_ids)) $existing_att_ids = [];
 
@@ -1047,6 +1049,7 @@ JS;
       'orderby' => 'date',
       'order' => 'DESC',
     ]);
+    $subcontractors = self::query_r09_subcontractors();
 
     echo '<h3>'.($is_edit ? 'Edit record' : 'New record').'</h3>';
     echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" enctype="multipart/form-data">';
@@ -1080,6 +1083,18 @@ JS;
       foreach ($projects as $pr) {
         $sel = ($linked_project && (int)$linked_project === (int)$pr->ID) ? 'selected' : '';
         echo '<option '.$sel.' value="'.esc_attr($pr->ID).'">'.esc_html($pr->post_title).'</option>';
+      }
+    }
+    echo '</select></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Subcontractor</strong> <span class="be-qms-muted">(optional, for project-linked records)</span><br/>';
+    echo '<select class="be-qms-select" name="subcontractor_id">';
+    echo '<option value="0">— None selected —</option>';
+    if (!empty($subcontractors)) {
+      foreach ($subcontractors as $subcontractor) {
+        $sel = ($linked_subcontractor && (int)$linked_subcontractor === (int)$subcontractor->ID) ? 'selected' : '';
+        $name = get_post_meta($subcontractor->ID, '_be_qms_r09_subcontractor_name', true) ?: $subcontractor->post_title;
+        echo '<option '.$sel.' value="'.esc_attr($subcontractor->ID).'">'.esc_html($name).'</option>';
       }
     }
     echo '</select></label></div>';
@@ -1363,6 +1378,7 @@ JS;
     $date_closed = (string) get_post_meta($id, '_be_qms_r06_date_closed', true);
     $reported_title = (string) get_post_meta($id, '_be_qms_r06_reported_title', true);
     $linked_project = (int) get_post_meta($id, self::META_PROJECT_LINK, true);
+    $linked_subcontractor = (int) get_post_meta($id, '_be_qms_subcontractor_id', true);
     $att_ids = get_post_meta($id, '_be_qms_attachments', true);
     if (!is_array($att_ids)) $att_ids = [];
 
@@ -1379,6 +1395,12 @@ JS;
       $pt = get_the_title($linked_project);
       $purl = esc_url(add_query_arg(['view'=>'projects','be_action'=>'view','id'=>$linked_project], self::portal_url()));
       echo '<div class="be-qms-muted">Linked project: <a class="be-qms-link" href="'.$purl.'">'.esc_html($pt ?: ('Project #'.$linked_project)).'</a></div>';
+    }
+    if ($linked_subcontractor) {
+      $subcontractor_name = get_post_meta($linked_subcontractor, '_be_qms_r09_subcontractor_name', true) ?: get_the_title($linked_subcontractor);
+      if ($subcontractor_name) {
+        echo '<div class="be-qms-muted">Subcontractor: '.esc_html($subcontractor_name).'</div>';
+      }
     }
 
     echo '</div>';
@@ -4018,6 +4040,13 @@ JS;
       update_post_meta($pid, self::META_PROJECT_LINK, $project_id);
     } else {
       delete_post_meta($pid, self::META_PROJECT_LINK);
+    }
+
+    $subcontractor_id = isset($_POST['subcontractor_id']) ? (int) $_POST['subcontractor_id'] : 0;
+    if ($subcontractor_id > 0) {
+      update_post_meta($pid, '_be_qms_subcontractor_id', $subcontractor_id);
+    } else {
+      delete_post_meta($pid, '_be_qms_subcontractor_id');
     }
 
     $existing = get_post_meta($pid, '_be_qms_attachments', true);
