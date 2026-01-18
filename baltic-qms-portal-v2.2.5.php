@@ -760,6 +760,10 @@ JS;
         self::render_r03_purchase_order_view((int) $_GET['id']);
         return;
       }
+      if ($action === 'templates') {
+        self::render_r03_purchase_order_templates();
+        return;
+      }
       if ($action === 'uploads' && !empty($_GET['id'])) {
         self::render_r03_purchase_order_uploads((int) $_GET['id']);
         return;
@@ -2005,13 +2009,17 @@ JS;
 
   private static function render_r03_purchase_order_list() {
     $add_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'new'], self::portal_url()));
+    $templates_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'templates'], self::portal_url()));
 
     echo '<div class="be-qms-row" style="justify-content:space-between">';
     echo '<div>'
       .'<h3 style="margin:0">R03 - Purchase Order</h3>'
       .'<div class="be-qms-muted">Purchase orders raised for goods-in checks.</div>'
       .'</div>';
-    echo '<div class="be-qms-row"><a class="be-qms-btn" href="'.$add_url.'">Add New</a></div>';
+    echo '<div class="be-qms-row">'
+      .'<a class="be-qms-btn" href="'.$add_url.'">Add New</a>'
+      .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$templates_url.'">Existing Templates</a>'
+      .'</div>';
     echo '</div>';
 
     $records = self::query_r03_purchase_orders();
@@ -2269,6 +2277,54 @@ JS;
     echo '</div>';
 
     echo '</form>';
+  }
+
+  private static function render_r03_purchase_order_templates() {
+    $add_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'new'], self::portal_url()));
+    $templates = self::query_r03_templates();
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div>'
+      .'<h3 style="margin:0">R03 - Purchase Order Templates</h3>'
+      .'<div class="be-qms-muted">Select a saved template to prefill a new purchase order.</div>'
+      .'</div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn" href="'.$add_url.'">Create New</a></div>';
+    echo '</div>';
+
+    echo '<table class="be-qms-table" style="margin-top:12px">';
+    echo '<thead><tr><th>Template</th><th>Supplier</th><th>Created</th><th>Options</th></tr></thead><tbody>';
+
+    if (!$templates) {
+      echo '<tr><td colspan="4" class="be-qms-muted">No templates saved yet. Create a purchase order and tick “Save this purchase order as a template”.</td></tr>';
+    } else {
+      foreach ($templates as $template) {
+        $rid = (int) $template->ID;
+        $supplier = get_post_meta($rid, '_be_qms_r03_supplier_name', true);
+        $created = get_the_date('Y-m-d', $rid);
+        $use_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'new','template_id'=>$rid], self::portal_url()));
+        $view_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'view','id'=>$rid], self::portal_url()));
+        $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'edit','id'=>$rid], self::portal_url()));
+        $del_url  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=record&id='.$rid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$rid)));
+
+        $display_created = $created ? self::format_date_for_display($created) : '—';
+
+        echo '<tr>';
+        echo '<td><a class="be-qms-link" href="'.$view_url.'">'.esc_html($template->post_title).'</a></td>';
+        echo '<td>'.esc_html($supplier ?: '—').'</td>';
+        echo '<td>'.esc_html($display_created).'</td>';
+        echo '<td class="be-qms-row">'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$use_url.'">Use Template</a>'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a>'
+          .'<a class="be-qms-btn be-qms-btn-danger" href="'.$del_url.'" onclick="return confirm(\'Remove this template?\')">Remove</a>'
+          .'</td>';
+        echo '</tr>';
+      }
+    }
+
+    echo '</tbody></table>';
+
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order'], self::portal_url()));
+    echo '<div class="be-qms-row" style="margin-top:12px"><a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Return to Purchase Orders</a></div>';
   }
 
   private static function render_r03_purchase_order_view($id) {
