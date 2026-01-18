@@ -697,6 +697,7 @@ JS;
     $is_r03 = ($type === 'r03_purchase_order');
     $is_r08 = ($type === 'r08_approved_suppliers');
     $is_r09 = ($type === 'r09_approved_subcontract');
+    $is_r11 = ($type === 'r11_company_documents');
 
     // --- Action pages (no sidebar) ---
     if ($is_r07 && in_array($action, ['new_employee','edit_employee','employee','add_skill','edit_skill'], true)) {
@@ -787,6 +788,21 @@ JS;
       }
     }
 
+    if ($is_r11) {
+      if ($action === 'new') {
+        self::render_r11_company_documents_form(0);
+        return;
+      }
+      if ($action === 'edit' && !empty($_GET['id'])) {
+        self::render_r11_company_documents_form((int) $_GET['id']);
+        return;
+      }
+      if ($action === 'view' && !empty($_GET['id'])) {
+        self::render_r11_company_documents_view((int) $_GET['id']);
+        return;
+      }
+    }
+
     if ($action === 'new') {
       if ($is_r06) {
         self::render_r06_customer_complaints_form(0);
@@ -863,6 +879,12 @@ JS;
 
     if ($is_r09) {
       self::render_r09_subcontractor_list();
+      echo '</div></div>';
+      return;
+    }
+
+    if ($is_r11) {
+      self::render_r11_company_documents_list();
       echo '</div></div>';
       return;
     }
@@ -2925,6 +2947,276 @@ JS;
   }
 
   // -------------------------
+  // R11 Company Documents
+  // -------------------------
+
+  private static function render_r11_company_documents_list() {
+    $add_url = esc_url(add_query_arg(['view'=>'records','type'=>'r11_company_documents','be_action'=>'new'], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div>'
+      .'<h3 style="margin:0">R11 - Company Documents</h3>'
+      .'<div class="be-qms-muted">Track controlled company documents, software, and data storage references.</div>'
+      .'</div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn" href="'.$add_url.'">Add New</a></div>';
+    echo '</div>';
+
+    $docs = self::query_r11_company_documents();
+
+    echo '<table class="be-qms-table" style="margin-top:12px">';
+    echo '<thead><tr><th>Document</th><th>Category</th><th>Version</th><th>Review Date</th><th>Status</th><th>Options</th></tr></thead><tbody>';
+
+    if (!$docs) {
+      echo '<tr><td colspan="6" class="be-qms-muted">No company documents yet. Click “Add New”.</td></tr>';
+    } else {
+      foreach ($docs as $doc) {
+        $rid = (int) $doc->ID;
+        $title = get_post_meta($rid, '_be_qms_r11_doc_title', true) ?: $doc->post_title;
+        $category = get_post_meta($rid, '_be_qms_r11_category', true);
+        $version = get_post_meta($rid, '_be_qms_r11_version', true);
+        $review_date = get_post_meta($rid, '_be_qms_r11_review_date', true);
+        $status = get_post_meta($rid, '_be_qms_r11_status', true);
+
+        $view_url = esc_url(add_query_arg(['view'=>'records','type'=>'r11_company_documents','be_action'=>'view','id'=>$rid], self::portal_url()));
+        $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r11_company_documents','be_action'=>'edit','id'=>$rid], self::portal_url()));
+        $del_url  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=record&id='.$rid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$rid)));
+
+        $display_review = $review_date ? self::format_date_for_display($review_date) : '—';
+
+        echo '<tr>';
+        echo '<td><a class="be-qms-link" href="'.$view_url.'">'.esc_html($title ?: '—').'</a></td>';
+        echo '<td>'.esc_html($category ?: '—').'</td>';
+        echo '<td>'.esc_html($version ?: '—').'</td>';
+        echo '<td>'.esc_html($display_review).'</td>';
+        echo '<td>'.esc_html($status ?: '—').'</td>';
+        echo '<td class="be-qms-row">'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$view_url.'">View</a>'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a>'
+          .'<a class="be-qms-btn be-qms-btn-danger" href="'.$del_url.'" onclick="return confirm(\'Remove this document?\')">Remove</a>'
+          .'</td>';
+        echo '</tr>';
+      }
+    }
+
+    echo '</tbody></table>';
+  }
+
+  private static function query_r11_company_documents() {
+    $q = new WP_Query([
+      'post_type' => self::CPT_RECORD,
+      'post_status' => 'publish',
+      'posts_per_page' => 200,
+      'orderby' => 'title',
+      'order' => 'ASC',
+      'tax_query' => [[
+        'taxonomy' => self::TAX_RECORD_TYPE,
+        'field' => 'slug',
+        'terms' => ['r11_company_documents'],
+      ]],
+    ]);
+    return $q->have_posts() ? $q->posts : [];
+  }
+
+  private static function render_r11_company_documents_form($id) {
+    $is_edit = $id > 0;
+    $p = $is_edit ? get_post($id) : null;
+    if ($is_edit && (!$p || $p->post_type !== self::CPT_RECORD)) {
+      echo '<div class="be-qms-muted">Document record not found.</div>';
+      return;
+    }
+
+    $doc_title = $is_edit ? (get_post_meta($id, '_be_qms_r11_doc_title', true) ?: $p->post_title) : '';
+    $category = $is_edit ? get_post_meta($id, '_be_qms_r11_category', true) : '';
+    $reference = $is_edit ? get_post_meta($id, '_be_qms_r11_reference', true) : '';
+    $version = $is_edit ? get_post_meta($id, '_be_qms_r11_version', true) : '';
+    $owner = $is_edit ? get_post_meta($id, '_be_qms_r11_owner', true) : '';
+    $location = $is_edit ? get_post_meta($id, '_be_qms_r11_location', true) : '';
+    $link = $is_edit ? get_post_meta($id, '_be_qms_r11_link', true) : '';
+    $issue_date = $is_edit ? get_post_meta($id, '_be_qms_r11_issue_date', true) : '';
+    $review_date = $is_edit ? get_post_meta($id, '_be_qms_r11_review_date', true) : '';
+    $status = $is_edit ? get_post_meta($id, '_be_qms_r11_status', true) : '';
+    $notes = $is_edit ? get_post_meta($id, '_be_qms_r11_notes', true) : '';
+    $existing_att_ids = $is_edit ? get_post_meta($id, '_be_qms_attachments', true) : [];
+    if (!is_array($existing_att_ids)) $existing_att_ids = [];
+
+    $categories = [
+      'External Docs',
+      'Accessed Docs',
+      'Live Company Docs',
+      'Old Company Docs',
+      'Software',
+      'Data Storage',
+      'Backup Info',
+    ];
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R11 - Company Documents</h3>';
+    echo '<div class="be-qms-muted">'.($is_edit ? 'Edit document record' : 'Add new document').'</div></div>';
+    echo '</div>';
+
+    echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" enctype="multipart/form-data" style="margin-top:12px">';
+    echo '<input type="hidden" name="action" value="be_qms_save_record" />';
+    echo '<input type="hidden" name="record_type" value="r11_company_documents" />';
+    wp_nonce_field('be_qms_save_record');
+    if ($is_edit) {
+      echo '<input type="hidden" name="record_id" value="'.esc_attr($id).'" />';
+    }
+
+    echo '<div class="be-qms-grid">';
+
+    echo '<div class="be-qms-col-6"><label><strong>Document title</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r11_doc_title" value="'.esc_attr($doc_title).'" required /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Category</strong><br/>';
+    echo '<select class="be-qms-select" name="r11_category">';
+    echo '<option value="">— Select —</option>';
+    foreach ($categories as $option) {
+      $selected = ($category === $option) ? 'selected' : '';
+      echo '<option '.$selected.' value="'.esc_attr($option).'">'.esc_html($option).'</option>';
+    }
+    echo '</select></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Reference / ID</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r11_reference" value="'.esc_attr($reference).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Version</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r11_version" value="'.esc_attr($version).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Owner</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r11_owner" value="'.esc_attr($owner).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Location / Storage</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r11_location" value="'.esc_attr($location).'" /></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Document link (optional)</strong><br/>';
+    echo '<input class="be-qms-input" type="url" name="r11_link" value="'.esc_attr($link).'" placeholder="https://..." /></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>Issue date</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="r11_issue_date" value="'.esc_attr(self::format_date_for_display($issue_date)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>Review date</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="r11_review_date" value="'.esc_attr(self::format_date_for_display($review_date)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>Status</strong><br/>';
+    echo '<select class="be-qms-select" name="r11_status">';
+    $status_options = ['Active', 'Superseded', 'Draft'];
+    echo '<option value="">— Select —</option>';
+    foreach ($status_options as $option) {
+      $selected = ($status === $option) ? 'selected' : '';
+      echo '<option '.$selected.' value="'.esc_attr($option).'">'.esc_html($option).'</option>';
+    }
+    echo '</select></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Notes</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="r11_notes">'.esc_textarea($notes).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Attachments</strong> <span class="be-qms-muted">(optional)</span><br/>';
+    echo '<input type="file" name="attachments[]" multiple /></label></div>';
+
+    if ($is_edit) {
+      echo '<div class="be-qms-col-12"><strong>Existing attachments</strong><br/>';
+      if (!$existing_att_ids) {
+        echo '<div class="be-qms-muted">None.</div>';
+      } else {
+        echo '<div class="be-qms-muted">Tick to remove on save:</div>';
+        echo '<ul style="margin:8px 0 0 18px">';
+        foreach ($existing_att_ids as $aid) {
+          $url = wp_get_attachment_url($aid);
+          $name = get_the_title($aid);
+          if (!$url) continue;
+          echo '<li><label style="display:flex;gap:10px;align-items:center">'
+            .'<input type="checkbox" name="remove_attachments[]" value="'.esc_attr($aid).'">'
+            .'<a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name ?: basename($url)).'</a>'
+            .'</label></li>';
+        }
+        echo '</ul>';
+      }
+      echo '</div>';
+    }
+
+    echo '</div>';
+
+    echo '<div class="be-qms-row" style="margin-top:12px">';
+    echo '<button class="be-qms-btn" type="submit">'.($is_edit ? 'Save changes' : 'Save').'</button>';
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r11_company_documents'], self::portal_url()));
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Cancel</a>';
+    echo '</div>';
+
+    echo '</form>';
+  }
+
+  private static function render_r11_company_documents_view($id) {
+    $p = get_post($id);
+    if (!$p || $p->post_type !== self::CPT_RECORD) {
+      echo '<div class="be-qms-muted">Document record not found.</div>';
+      return;
+    }
+
+    $doc_title = get_post_meta($id, '_be_qms_r11_doc_title', true) ?: $p->post_title;
+    $category = get_post_meta($id, '_be_qms_r11_category', true);
+    $reference = get_post_meta($id, '_be_qms_r11_reference', true);
+    $version = get_post_meta($id, '_be_qms_r11_version', true);
+    $owner = get_post_meta($id, '_be_qms_r11_owner', true);
+    $location = get_post_meta($id, '_be_qms_r11_location', true);
+    $link = get_post_meta($id, '_be_qms_r11_link', true);
+    $issue_date = get_post_meta($id, '_be_qms_r11_issue_date', true);
+    $review_date = get_post_meta($id, '_be_qms_r11_review_date', true);
+    $status = get_post_meta($id, '_be_qms_r11_status', true);
+    $notes = get_post_meta($id, '_be_qms_r11_notes', true);
+    $att_ids = get_post_meta($id, '_be_qms_attachments', true);
+    if (!is_array($att_ids)) $att_ids = [];
+
+    $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r11_company_documents','be_action'=>'edit','id'=>$id], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R11 - Company Documents</h3>';
+    echo '<div class="be-qms-muted">'.esc_html($doc_title ?: '—').'</div></div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a></div>';
+    echo '</div>';
+
+    $display_issue = $issue_date ? self::format_date_for_display($issue_date) : '—';
+    $display_review = $review_date ? self::format_date_for_display($review_date) : '—';
+
+    echo '<div class="be-qms-card" style="margin-top:14px">';
+    echo '<table class="be-qms-table">';
+    echo '<tr><th>Document</th><td>'.esc_html($doc_title ?: '—').'</td></tr>';
+    echo '<tr><th>Category</th><td>'.esc_html($category ?: '—').'</td></tr>';
+    echo '<tr><th>Reference / ID</th><td>'.esc_html($reference ?: '—').'</td></tr>';
+    echo '<tr><th>Version</th><td>'.esc_html($version ?: '—').'</td></tr>';
+    echo '<tr><th>Owner</th><td>'.esc_html($owner ?: '—').'</td></tr>';
+    echo '<tr><th>Location / Storage</th><td>'.esc_html($location ?: '—').'</td></tr>';
+    if ($link) {
+      echo '<tr><th>Document link</th><td><a class="be-qms-link" target="_blank" href="'.esc_url($link).'">'.esc_html($link).'</a></td></tr>';
+    } else {
+      echo '<tr><th>Document link</th><td>—</td></tr>';
+    }
+    echo '<tr><th>Issue date</th><td>'.esc_html($display_issue).'</td></tr>';
+    echo '<tr><th>Review date</th><td>'.esc_html($display_review).'</td></tr>';
+    echo '<tr><th>Status</th><td>'.esc_html($status ?: '—').'</td></tr>';
+    echo '<tr><th>Notes</th><td>'.wpautop(esc_html($notes ?: '—')).'</td></tr>';
+    echo '</table>';
+
+    echo '<h4 style="margin-top:14px">Attachments</h4>';
+    if (!$att_ids) {
+      echo '<div class="be-qms-muted">None.</div>';
+    } else {
+      echo '<ul>';
+      foreach ($att_ids as $aid) {
+        $url = wp_get_attachment_url($aid);
+        $name = get_the_title($aid);
+        if ($url) {
+          echo '<li><a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name ?: basename($url)).'</a></li>';
+        }
+      }
+      echo '</ul>';
+    }
+    echo '</div>';
+
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r11_company_documents'], self::portal_url()));
+    echo '<div class="be-qms-row" style="margin-top:12px"><a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Return to Records</a></div>';
+  }
+
+  // -------------------------
   // R07 Training Matrix
   // -------------------------
 
@@ -3437,6 +3729,27 @@ JS;
       $date = $approval_date ?: date('Y-m-d');
       $details = $services ?: $notes;
       $actions = $notes;
+    } elseif ($type === 'r11_company_documents') {
+      $doc_title = sanitize_text_field($_POST['r11_doc_title'] ?? '');
+      $category = sanitize_text_field($_POST['r11_category'] ?? '');
+      $reference = sanitize_text_field($_POST['r11_reference'] ?? '');
+      $version = sanitize_text_field($_POST['r11_version'] ?? '');
+      $owner = sanitize_text_field($_POST['r11_owner'] ?? '');
+      $location = sanitize_text_field($_POST['r11_location'] ?? '');
+      $link = esc_url_raw($_POST['r11_link'] ?? '');
+      $issue_date = self::normalize_date_input($_POST['r11_issue_date'] ?? '');
+      $review_date = self::normalize_date_input($_POST['r11_review_date'] ?? '');
+      $status = sanitize_text_field($_POST['r11_status'] ?? '');
+      $notes = sanitize_textarea_field($_POST['r11_notes'] ?? '');
+
+      if (!$doc_title) {
+        wp_die('Missing document title.');
+      }
+
+      $title = $title ?: ('R11 Document – ' . $doc_title);
+      $date = $issue_date ?: date('Y-m-d');
+      $details = $notes;
+      $actions = '';
     } else {
       if (!$title || !$date || !$details) {
         wp_die('Missing required fields.');
@@ -3559,6 +3872,20 @@ JS;
       update_post_meta($pid, '_be_qms_r09_status', $status);
       update_post_meta($pid, '_be_qms_r09_employee_id', $employee_id);
       update_post_meta($pid, '_be_qms_r09_notes', $notes);
+    }
+
+    if ($type === 'r11_company_documents') {
+      update_post_meta($pid, '_be_qms_r11_doc_title', $doc_title);
+      update_post_meta($pid, '_be_qms_r11_category', $category);
+      update_post_meta($pid, '_be_qms_r11_reference', $reference);
+      update_post_meta($pid, '_be_qms_r11_version', $version);
+      update_post_meta($pid, '_be_qms_r11_owner', $owner);
+      update_post_meta($pid, '_be_qms_r11_location', $location);
+      update_post_meta($pid, '_be_qms_r11_link', $link);
+      update_post_meta($pid, '_be_qms_r11_issue_date', $issue_date);
+      update_post_meta($pid, '_be_qms_r11_review_date', $review_date);
+      update_post_meta($pid, '_be_qms_r11_status', $status);
+      update_post_meta($pid, '_be_qms_r11_notes', $notes);
     }
 
     if ($project_id > 0) {
