@@ -1948,7 +1948,7 @@ JS;
         $rid = (int) $record->ID;
         $date_raised = get_post_meta($rid, '_be_qms_r03_date_raised', true);
         $po_number = get_post_meta($rid, '_be_qms_r03_po_number', true);
-        $supplier = get_post_meta($rid, '_be_qms_r03_supplier', true);
+        $supplier = get_post_meta($rid, '_be_qms_r03_supplier_name', true);
         $customer_ref = get_post_meta($rid, '_be_qms_r03_customer_ref', true);
 
         $view_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'view','id'=>$rid], self::portal_url()));
@@ -1988,6 +1988,31 @@ JS;
         'field' => 'slug',
         'terms' => ['r03_purchase_order'],
       ]],
+      'meta_query' => [[
+        'key' => '_be_qms_r03_is_template',
+        'compare' => 'NOT EXISTS',
+      ]],
+    ]);
+    return $q->have_posts() ? $q->posts : [];
+  }
+
+  private static function query_r03_templates() {
+    $q = new WP_Query([
+      'post_type' => self::CPT_RECORD,
+      'post_status' => 'publish',
+      'posts_per_page' => 200,
+      'orderby' => 'title',
+      'order' => 'ASC',
+      'tax_query' => [[
+        'taxonomy' => self::TAX_RECORD_TYPE,
+        'field' => 'slug',
+        'terms' => ['r03_purchase_order'],
+      ]],
+      'meta_query' => [[
+        'key' => '_be_qms_r03_is_template',
+        'value' => '1',
+        'compare' => '=',
+      ]],
     ]);
     return $q->have_posts() ? $q->posts : [];
   }
@@ -2000,16 +2025,84 @@ JS;
       return;
     }
 
+    $template_id = isset($_GET['template_id']) ? (int) $_GET['template_id'] : 0;
+    $template = $template_id ? get_post($template_id) : null;
+    $template_ok = $template && $template->post_type === self::CPT_RECORD;
+
     $po_number = $is_edit ? get_post_meta($id, '_be_qms_r03_po_number', true) : '';
     $customer_ref = $is_edit ? get_post_meta($id, '_be_qms_r03_customer_ref', true) : '';
-    $supplier = $is_edit ? get_post_meta($id, '_be_qms_r03_supplier', true) : '';
+    $supplier_id = $is_edit ? (int) get_post_meta($id, '_be_qms_r03_supplier_id', true) : 0;
+    $supplier_name = $is_edit ? get_post_meta($id, '_be_qms_r03_supplier_name', true) : '';
     $description = $is_edit ? get_post_meta($id, '_be_qms_r03_description', true) : '';
     $raised_by = $is_edit ? get_post_meta($id, '_be_qms_r03_raised_by', true) : '';
     $date_raised = $is_edit ? get_post_meta($id, '_be_qms_r03_date_raised', true) : '';
+    $inverter_model = $is_edit ? get_post_meta($id, '_be_qms_r03_inverter_model', true) : '';
+    $solar_panels = $is_edit ? get_post_meta($id, '_be_qms_r03_solar_panels', true) : '';
+    $solar_panels_qty = $is_edit ? get_post_meta($id, '_be_qms_r03_solar_panels_qty', true) : '';
+    $battery_model = $is_edit ? get_post_meta($id, '_be_qms_r03_battery_model', true) : '';
+    $other_equipment = $is_edit ? get_post_meta($id, '_be_qms_r03_other_equipment', true) : '';
+    $linked_project = $is_edit ? (int) get_post_meta($id, self::META_PROJECT_LINK, true) : 0;
+
+    if (!$is_edit && $template_ok) {
+      $po_number = get_post_meta($template_id, '_be_qms_r03_po_number', true);
+      $customer_ref = get_post_meta($template_id, '_be_qms_r03_customer_ref', true);
+      $supplier_id = (int) get_post_meta($template_id, '_be_qms_r03_supplier_id', true);
+      $supplier_name = get_post_meta($template_id, '_be_qms_r03_supplier_name', true);
+      $description = get_post_meta($template_id, '_be_qms_r03_description', true);
+      $raised_by = get_post_meta($template_id, '_be_qms_r03_raised_by', true);
+      $date_raised = get_post_meta($template_id, '_be_qms_r03_date_raised', true);
+      $inverter_model = get_post_meta($template_id, '_be_qms_r03_inverter_model', true);
+      $solar_panels = get_post_meta($template_id, '_be_qms_r03_solar_panels', true);
+      $solar_panels_qty = get_post_meta($template_id, '_be_qms_r03_solar_panels_qty', true);
+      $battery_model = get_post_meta($template_id, '_be_qms_r03_battery_model', true);
+      $other_equipment = get_post_meta($template_id, '_be_qms_r03_other_equipment', true);
+    }
+
+    $suppliers = get_posts([
+      'post_type' => self::CPT_RECORD,
+      'post_status' => 'publish',
+      'numberposts' => 200,
+      'orderby' => 'title',
+      'order' => 'ASC',
+      'tax_query' => [[
+        'taxonomy' => self::TAX_RECORD_TYPE,
+        'field' => 'slug',
+        'terms' => ['r08_approved_suppliers'],
+      ]],
+    ]);
+
+    $projects = get_posts([
+      'post_type' => self::CPT_PROJECT,
+      'post_status' => 'publish',
+      'numberposts' => 200,
+      'orderby' => 'date',
+      'order' => 'DESC',
+    ]);
+
+    $templates = self::query_r03_templates();
 
     echo '<div class="be-qms-row" style="justify-content:space-between">';
     echo '<div><h3 style="margin:0">R03 - Purchase Order</h3></div>';
     echo '</div>';
+
+    if (!$is_edit && $templates) {
+      echo '<form method="get" action="'.esc_url(self::portal_url()).'" style="margin-top:12px">';
+      echo '<input type="hidden" name="view" value="records" />';
+      echo '<input type="hidden" name="type" value="r03_purchase_order" />';
+      echo '<input type="hidden" name="be_action" value="new" />';
+      echo '<div class="be-qms-row">';
+      echo '<label><strong>Load template</strong> ';
+      echo '<select class="be-qms-select" name="template_id" style="min-width:240px">';
+      echo '<option value="">Select a template</option>';
+      foreach ($templates as $template) {
+        $selected = ($template_id && $template_id === (int) $template->ID) ? 'selected' : '';
+        echo '<option '.$selected.' value="'.esc_attr($template->ID).'">'.esc_html($template->post_title).'</option>';
+      }
+      echo '</select></label>';
+      echo '<button class="be-qms-btn be-qms-btn-secondary" type="submit">Load</button>';
+      echo '</div>';
+      echo '</form>';
+    }
 
     echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" enctype="multipart/form-data" style="margin-top:12px">';
     echo '<input type="hidden" name="action" value="be_qms_save_record" />';
@@ -2028,7 +2121,17 @@ JS;
     echo '<input class="be-qms-input" type="text" name="r03_customer_ref" value="'.esc_attr($customer_ref).'" /></label></div>';
 
     echo '<div class="be-qms-col-6"><label><strong>Supplier</strong><br/>';
-    echo '<input class="be-qms-input" type="text" name="r03_supplier" value="'.esc_attr($supplier).'" /></label></div>';
+    echo '<select class="be-qms-select" name="r03_supplier_id">';
+    if ($suppliers) {
+      echo '<option value="">Select supplier</option>';
+      foreach ($suppliers as $supplier) {
+        $selected = ($supplier_id && (int) $supplier_id === (int) $supplier->ID) ? 'selected' : '';
+        echo '<option '.$selected.' value="'.esc_attr($supplier->ID).'">'.esc_html($supplier->post_title).'</option>';
+      }
+    } else {
+      echo '<option value="">No approved suppliers yet — create one in R08.</option>';
+    }
+    echo '</select></label></div>';
 
     echo '<div class="be-qms-col-6"><label><strong>Description</strong><br/>';
     echo '<textarea class="be-qms-textarea" name="r03_description">'.esc_textarea($description).'</textarea></label></div>';
@@ -2038,6 +2141,37 @@ JS;
 
     echo '<div class="be-qms-col-6"><label><strong>Date Raised</strong><br/>';
     echo '<input class="be-qms-input be-qms-date" type="text" name="r03_date_raised" value="'.esc_attr(self::format_date_for_display($date_raised)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '<div class="be-qms-col-12"><hr style="margin:8px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><strong>Equipment list</strong></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Inverter model</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r03_inverter_model" value="'.esc_attr($inverter_model).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Solar panels</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r03_solar_panels" value="'.esc_attr($solar_panels).'" placeholder="e.g. 410W panel model" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Solar panels (qty)</strong><br/>';
+    echo '<input class="be-qms-input" type="number" min="0" name="r03_solar_panels_qty" value="'.esc_attr($solar_panels_qty).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Battery model</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r03_battery_model" value="'.esc_attr($battery_model).'" /></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Other equipment</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="r03_other_equipment">'.esc_textarea($other_equipment).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Linked project</strong> <span class="be-qms-muted">(optional)</span><br/>';
+    echo '<select class="be-qms-select" name="project_id">';
+    echo '<option value="0">— Company record (not tied to a job) —</option>';
+    if (!empty($projects)) {
+      foreach ($projects as $project) {
+        $selected = ($linked_project && (int) $linked_project === (int) $project->ID) ? 'selected' : '';
+        echo '<option '.$selected.' value="'.esc_attr($project->ID).'">'.esc_html($project->post_title).'</option>';
+      }
+    }
+    echo '</select></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><input type="checkbox" name="r03_save_template" value="1" /> Save this purchase order as a template</label></div>';
 
     echo '</div>';
 
@@ -2068,10 +2202,15 @@ JS;
 
     $po_number = get_post_meta($id, '_be_qms_r03_po_number', true);
     $customer_ref = get_post_meta($id, '_be_qms_r03_customer_ref', true);
-    $supplier = get_post_meta($id, '_be_qms_r03_supplier', true);
+    $supplier = get_post_meta($id, '_be_qms_r03_supplier_name', true);
     $description = get_post_meta($id, '_be_qms_r03_description', true);
     $raised_by = get_post_meta($id, '_be_qms_r03_raised_by', true);
     $date_raised = get_post_meta($id, '_be_qms_r03_date_raised', true);
+    $inverter_model = get_post_meta($id, '_be_qms_r03_inverter_model', true);
+    $solar_panels = get_post_meta($id, '_be_qms_r03_solar_panels', true);
+    $solar_panels_qty = get_post_meta($id, '_be_qms_r03_solar_panels_qty', true);
+    $battery_model = get_post_meta($id, '_be_qms_r03_battery_model', true);
+    $other_equipment = get_post_meta($id, '_be_qms_r03_other_equipment', true);
 
     $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'edit','id'=>$id], self::portal_url()));
     $uploads_url = esc_url(add_query_arg(['view'=>'records','type'=>'r03_purchase_order','be_action'=>'uploads','id'=>$id], self::portal_url()));
@@ -2093,6 +2232,11 @@ JS;
     echo '<tr><th>Raised By</th><td>'.esc_html($raised_by ?: '—').'</td></tr>';
     echo '<tr><th>Date Raised</th><td>'.esc_html(self::format_date_for_display($date_raised) ?: '—').'</td></tr>';
     echo '<tr><th>Description</th><td>'.wpautop(esc_html($description)).'</td></tr>';
+    echo '<tr><th>Inverter model</th><td>'.esc_html($inverter_model ?: '—').'</td></tr>';
+    echo '<tr><th>Solar panels</th><td>'.esc_html($solar_panels ?: '—').'</td></tr>';
+    echo '<tr><th>Solar panels (qty)</th><td>'.esc_html($solar_panels_qty ?: '—').'</td></tr>';
+    echo '<tr><th>Battery model</th><td>'.esc_html($battery_model ?: '—').'</td></tr>';
+    echo '<tr><th>Other equipment</th><td>'.wpautop(esc_html($other_equipment)).'</td></tr>';
     echo '</table>';
     echo '</div>';
 
@@ -2654,14 +2798,21 @@ JS;
     } elseif ($type === 'r03_purchase_order') {
       $po_number = sanitize_text_field($_POST['r03_po_number'] ?? '');
       $customer_ref = sanitize_text_field($_POST['r03_customer_ref'] ?? '');
-      $supplier = sanitize_text_field($_POST['r03_supplier'] ?? '');
+      $supplier_id = isset($_POST['r03_supplier_id']) ? (int) $_POST['r03_supplier_id'] : 0;
+      $supplier_name = $supplier_id ? get_the_title($supplier_id) : '';
       $description = sanitize_textarea_field($_POST['r03_description'] ?? '');
       $raised_by = sanitize_text_field($_POST['r03_raised_by'] ?? '');
       $date_raised = self::normalize_date_input($_POST['r03_date_raised'] ?? '');
+      $inverter_model = sanitize_text_field($_POST['r03_inverter_model'] ?? '');
+      $solar_panels = sanitize_text_field($_POST['r03_solar_panels'] ?? '');
+      $solar_panels_qty = sanitize_text_field($_POST['r03_solar_panels_qty'] ?? '');
+      $battery_model = sanitize_text_field($_POST['r03_battery_model'] ?? '');
+      $other_equipment = sanitize_textarea_field($_POST['r03_other_equipment'] ?? '');
+      $save_template = !empty($_POST['r03_save_template']) ? '1' : '';
 
       $title_bits = array_filter([
         $po_number ? ('PO ' . $po_number) : '',
-        $supplier ?: '',
+        $supplier_name ?: '',
       ]);
       $title = $title ?: ('R03 Purchase Order' . ($title_bits ? (' – ' . implode(' • ', $title_bits)) : ''));
       $date = $date_raised ?: date('Y-m-d');
@@ -2746,10 +2897,21 @@ JS;
     if ($type === 'r03_purchase_order') {
       update_post_meta($pid, '_be_qms_r03_po_number', $po_number);
       update_post_meta($pid, '_be_qms_r03_customer_ref', $customer_ref);
-      update_post_meta($pid, '_be_qms_r03_supplier', $supplier);
+      update_post_meta($pid, '_be_qms_r03_supplier_id', $supplier_id);
+      update_post_meta($pid, '_be_qms_r03_supplier_name', $supplier_name);
       update_post_meta($pid, '_be_qms_r03_description', $description);
       update_post_meta($pid, '_be_qms_r03_raised_by', $raised_by);
       update_post_meta($pid, '_be_qms_r03_date_raised', $date_raised);
+      update_post_meta($pid, '_be_qms_r03_inverter_model', $inverter_model);
+      update_post_meta($pid, '_be_qms_r03_solar_panels', $solar_panels);
+      update_post_meta($pid, '_be_qms_r03_solar_panels_qty', $solar_panels_qty);
+      update_post_meta($pid, '_be_qms_r03_battery_model', $battery_model);
+      update_post_meta($pid, '_be_qms_r03_other_equipment', $other_equipment);
+      if ($save_template) {
+        update_post_meta($pid, '_be_qms_r03_is_template', '1');
+      } else {
+        delete_post_meta($pid, '_be_qms_r03_is_template');
+      }
     }
 
     if ($project_id > 0) {
