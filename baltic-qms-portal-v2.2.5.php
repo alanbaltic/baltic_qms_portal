@@ -287,6 +287,23 @@ jQuery(function($){
 
   toggleTemplateName();
   $(document).on('change', '[name="r03_save_template"]', toggleTemplateName);
+
+  function toggleProjectSubcontractor(){
+    var $selector = $('[name="project_has_subcontractor"]');
+    var $wrapper = $('[data-subcontractor-field]');
+    var $subSelect = $('[name="project_subcontractor_id"]');
+    if (!$selector.length || !$wrapper.length) return;
+    if ($selector.val() === 'yes') {
+      $wrapper.show();
+      $subSelect.prop('disabled', false);
+    } else {
+      $wrapper.hide();
+      $subSelect.prop('disabled', true);
+    }
+  }
+
+  toggleProjectSubcontractor();
+  $(document).on('change', '[name="project_has_subcontractor"]', toggleProjectSubcontractor);
 });
 JS;
     wp_add_inline_script('jquery-ui-datepicker', $js);
@@ -4560,6 +4577,8 @@ JS;
     $bess_kwh = '';
     $contract_signed = '';
     $notes = '';
+    $has_subcontractor = 'no';
+    $subcontractor_id = 0;
     $existing_att_ids = [];
     $handover_checklist = [];
 
@@ -4580,6 +4599,9 @@ JS;
       $bess_kwh = (string) get_post_meta($id, '_be_qms_bess_kwh', true);
       $contract_signed = (string) get_post_meta($id, '_be_qms_contract_signed', true);
       $notes    = (string) get_post_meta($id, '_be_qms_notes', true);
+      $has_subcontractor = (string) get_post_meta($id, '_be_qms_project_has_subcontractor', true);
+      $has_subcontractor = $has_subcontractor === 'yes' ? 'yes' : 'no';
+      $subcontractor_id = (int) get_post_meta($id, '_be_qms_project_subcontractor_id', true);
       $existing_att_ids = get_post_meta($id, '_be_qms_evidence', true);
       if (!is_array($existing_att_ids)) $existing_att_ids = [];
       $handover_checklist = get_post_meta($id, '_be_qms_handover_checklist', true);
@@ -4613,6 +4635,29 @@ JS;
 
     echo '<div class="be-qms-col-6"><label><strong>Date contract signed</strong><br/>';
     echo '<input class="be-qms-input be-qms-date" type="text" name="contract_signed" value="'.esc_attr(self::format_date_for_display($contract_signed)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    $subcontractors = self::query_r09_subcontractors();
+    echo '<div class="be-qms-col-6"><label><strong>Has a subcontractor done this job?</strong><br/>';
+    echo '<select class="be-qms-select" name="project_has_subcontractor">';
+    $subcontractor_options = ['no' => 'No', 'yes' => 'Yes'];
+    foreach ($subcontractor_options as $value => $label) {
+      $selected = ($has_subcontractor === $value) ? 'selected' : '';
+      echo '<option '.$selected.' value="'.esc_attr($value).'">'.esc_html($label).'</option>';
+    }
+    echo '</select></label></div>';
+
+    $subcontractor_style = $has_subcontractor === 'yes' ? '' : 'display:none;';
+    $subcontractor_disabled = $has_subcontractor === 'yes' ? '' : 'disabled';
+    echo '<div class="be-qms-col-6" data-subcontractor-field style="'.$subcontractor_style.'"><label><strong>Subcontractor</strong><br/>';
+    echo '<select class="be-qms-select" name="project_subcontractor_id" '.$subcontractor_disabled.'>';
+    echo '<option value="">— Select —</option>';
+    foreach ($subcontractors as $subcontractor) {
+      $sid = (int) $subcontractor->ID;
+      $label = get_post_meta($sid, '_be_qms_r09_subcontractor_name', true) ?: get_the_title($sid);
+      $selected = ($sid === $subcontractor_id) ? 'selected' : '';
+      echo '<option '.$selected.' value="'.esc_attr($sid).'">'.esc_html($label ?: ('Subcontractor #'.$sid)).'</option>';
+    }
+    echo '</select></label></div>';
 
     echo '<div class="be-qms-col-12"><label><strong>Notes</strong><br/>';
     echo '<textarea class="be-qms-textarea" name="notes">'.esc_textarea($notes).'</textarea></label></div>';
@@ -4674,6 +4719,8 @@ JS;
     $bess_kwh = get_post_meta($id, '_be_qms_bess_kwh', true);
     $contract_signed = get_post_meta($id, '_be_qms_contract_signed', true);
     $notes    = get_post_meta($id, '_be_qms_notes', true);
+    $has_subcontractor = get_post_meta($id, '_be_qms_project_has_subcontractor', true) === 'yes' ? 'yes' : 'no';
+    $subcontractor_id = (int) get_post_meta($id, '_be_qms_project_subcontractor_id', true);
     $att_ids  = get_post_meta($id, '_be_qms_evidence', true);
     if (!is_array($att_ids)) $att_ids = [];
     $handover_checklist = get_post_meta($id, '_be_qms_handover_checklist', true);
@@ -4712,6 +4759,14 @@ JS;
     echo '<div class="be-qms-col-6"><strong>Battery (kWh)</strong><br/>'.esc_html($bess_kwh ?: '-').'</div>';
     $display_contract_signed = $contract_signed ? self::format_date_for_display($contract_signed) : '—';
     echo '<div class="be-qms-col-6"><strong>Date contract signed</strong><br/>'.esc_html($display_contract_signed).'</div>';
+    $subcontractor_label = '—';
+    if ($has_subcontractor === 'yes' && $subcontractor_id > 0) {
+      $subcontractor_label = get_post_meta($subcontractor_id, '_be_qms_r09_subcontractor_name', true) ?: get_the_title($subcontractor_id) ?: ('Subcontractor #'.$subcontractor_id);
+    }
+    echo '<div class="be-qms-col-6"><strong>Subcontractor used</strong><br/>'.esc_html($has_subcontractor === 'yes' ? 'Yes' : 'No').'</div>';
+    if ($has_subcontractor === 'yes') {
+      echo '<div class="be-qms-col-6"><strong>Subcontractor</strong><br/>'.esc_html($subcontractor_label).'</div>';
+    }
     echo '</div>';
 
     echo '<h4 style="margin-top:14px">Customer handover checklist</h4>';
@@ -4836,6 +4891,26 @@ JS;
     update_post_meta($pid, '_be_qms_bess_kwh', sanitize_text_field($_POST['bess_kwh'] ?? ''));
     update_post_meta($pid, '_be_qms_contract_signed', self::normalize_date_input($_POST['contract_signed'] ?? ''));
     update_post_meta($pid, '_be_qms_notes', wp_kses_post($_POST['notes'] ?? ''));
+
+    $has_subcontractor = sanitize_text_field($_POST['project_has_subcontractor'] ?? 'no');
+    $has_subcontractor = $has_subcontractor === 'yes' ? 'yes' : 'no';
+    $subcontractor_id = isset($_POST['project_subcontractor_id']) ? (int) $_POST['project_subcontractor_id'] : 0;
+    if ($has_subcontractor === 'yes' && $subcontractor_id > 0) {
+      $sub_post = get_post($subcontractor_id);
+      if (!$sub_post || $sub_post->post_type !== self::CPT_RECORD) {
+        $subcontractor_id = 0;
+      } else {
+        $terms = get_the_terms($subcontractor_id, self::TAX_RECORD_TYPE);
+        $is_r09 = $terms && !is_wp_error($terms) && $terms[0]->slug === 'r09_approved_subcontract';
+        if (!$is_r09) {
+          $subcontractor_id = 0;
+        }
+      }
+    } else {
+      $subcontractor_id = 0;
+    }
+    update_post_meta($pid, '_be_qms_project_has_subcontractor', $has_subcontractor);
+    update_post_meta($pid, '_be_qms_project_subcontractor_id', $subcontractor_id);
 
     $handover = isset($_POST['handover_checklist']) ? (array) $_POST['handover_checklist'] : [];
     $normalized_handover = [];
