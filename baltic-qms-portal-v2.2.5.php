@@ -30,6 +30,7 @@ class BE_QMS_Portal {
 
     add_action('admin_post_be_qms_save_record', [__CLASS__, 'handle_save_record']);
     add_action('admin_post_be_qms_save_project', [__CLASS__, 'handle_save_project']);
+    add_action('admin_post_be_qms_save_project_checklist', [__CLASS__, 'handle_save_project_checklist']);
     add_action('admin_post_be_qms_save_employee', [__CLASS__, 'handle_save_employee']);
     add_action('admin_post_be_qms_save_training', [__CLASS__, 'handle_save_training']);
     add_action('admin_post_be_qms_save_r03_upload', [__CLASS__, 'handle_save_r03_upload']);
@@ -275,6 +276,17 @@ jQuery(function($){
 });
 JS;
     wp_add_inline_script('jquery-ui-datepicker', $js);
+  }
+
+  private static function project_handover_items() {
+    return [
+      'design_report' => 'Design Report',
+      'schematic' => 'Schematic',
+      'dno_notification' => 'DNO Notification',
+      'building_control_notification' => 'Building Control Notification',
+      'pv_array_test_report' => 'PV Array Test Report',
+      'eic' => 'EIC',
+    ];
   }
 
   private static function get_record_type_slug($record_id) {
@@ -4058,8 +4070,10 @@ JS;
     $address = '';
     $pv_kwp = '';
     $bess_kwh = '';
+    $contract_signed = '';
     $notes = '';
     $existing_att_ids = [];
+    $handover_checklist = [];
 
     if ($is_edit) {
       $p = get_post($id);
@@ -4076,9 +4090,12 @@ JS;
       $address  = (string) get_post_meta($id, '_be_qms_address', true);
       $pv_kwp   = (string) get_post_meta($id, '_be_qms_pv_kwp', true);
       $bess_kwh = (string) get_post_meta($id, '_be_qms_bess_kwh', true);
+      $contract_signed = (string) get_post_meta($id, '_be_qms_contract_signed', true);
       $notes    = (string) get_post_meta($id, '_be_qms_notes', true);
       $existing_att_ids = get_post_meta($id, '_be_qms_evidence', true);
       if (!is_array($existing_att_ids)) $existing_att_ids = [];
+      $handover_checklist = get_post_meta($id, '_be_qms_handover_checklist', true);
+      if (!is_array($handover_checklist)) $handover_checklist = [];
     }
 
     echo '<h3>'.($is_edit ? 'Edit project' : 'New project').'</h3>';
@@ -4106,8 +4123,19 @@ JS;
     echo '<div class="be-qms-col-6"><label><strong>Battery size (kWh)</strong><br/>';
     echo '<input class="be-qms-input" type="text" name="bess_kwh" value="'.esc_attr($bess_kwh).'" /></label></div>';
 
+    echo '<div class="be-qms-col-6"><label><strong>Date contract signed</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="contract_signed" value="'.esc_attr(self::format_date_for_display($contract_signed)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
     echo '<div class="be-qms-col-12"><label><strong>Notes</strong><br/>';
     echo '<textarea class="be-qms-textarea" name="notes">'.esc_textarea($notes).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Customer handover checklist</strong></label>';
+    echo '<div class="be-qms-grid" style="margin-top:6px">';
+    foreach (self::project_handover_items() as $key => $label) {
+      $checked = !empty($handover_checklist[$key]) ? 'checked' : '';
+      echo '<div class="be-qms-col-6"><label><input type="checkbox" name="handover_checklist['.esc_attr($key).']" value="1" '.$checked.'> '.esc_html($label).'</label></div>';
+    }
+    echo '</div></div>';
 
     echo '<div class="be-qms-col-12">';
     echo '<label><strong>Evidence uploads</strong> <span class="be-qms-muted">(multiple files)</span></label>';
@@ -4156,22 +4184,37 @@ JS;
     $address  = get_post_meta($id, '_be_qms_address', true);
     $pv_kwp   = get_post_meta($id, '_be_qms_pv_kwp', true);
     $bess_kwh = get_post_meta($id, '_be_qms_bess_kwh', true);
+    $contract_signed = get_post_meta($id, '_be_qms_contract_signed', true);
     $notes    = get_post_meta($id, '_be_qms_notes', true);
     $att_ids  = get_post_meta($id, '_be_qms_evidence', true);
     if (!is_array($att_ids)) $att_ids = [];
+    $handover_checklist = get_post_meta($id, '_be_qms_handover_checklist', true);
+    if (!is_array($handover_checklist)) $handover_checklist = [];
 
     $print_url= esc_url(add_query_arg(['be_qms_export'=>'print','post'=>$id], self::portal_url()));
-    $add_record_url = esc_url(add_query_arg(['view'=>'records','be_action'=>'new','project_id'=>$id], self::portal_url()));
     $edit_url = esc_url(add_query_arg(['view'=>'projects','be_action'=>'edit','id'=>$id], self::portal_url()));
+    $record_defs = self::record_type_definitions();
 
     echo '<div class="be-qms-row" style="justify-content:space-between">';
     echo '<div><h3 style="margin:0">'.esc_html($p->post_title).'</h3><div class="be-qms-muted">Project file (assessment/job)</div></div>';
     echo '<div class="be-qms-row">'
-      .'<a class="be-qms-btn" href="'.$add_record_url.'">Add record for this project</a>'
       .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit project</a>'
       .'<a class="be-qms-btn be-qms-btn-secondary" target="_blank" href="'.$print_url.'">Print / Save PDF</a>'
       .'</div>';
     echo '</div>';
+
+    echo '<form method="get" action="'.esc_url(self::portal_url()).'" class="be-qms-row" style="margin-top:12px">';
+    echo '<input type="hidden" name="view" value="records" />';
+    echo '<input type="hidden" name="be_action" value="new" />';
+    echo '<input type="hidden" name="project_id" value="'.esc_attr($id).'" />';
+    echo '<label><strong>Add record for this project</strong><br/>';
+    echo '<select class="be-qms-select" name="type" style="min-width:260px">';
+    foreach ($record_defs as $slug => $label) {
+      echo '<option value="'.esc_attr($slug).'">'.esc_html($label).'</option>';
+    }
+    echo '</select></label>';
+    echo '<button class="be-qms-btn" type="submit">Add record</button>';
+    echo '</form>';
 
     echo '<div class="be-qms-card-inner">';
     echo '<div class="be-qms-grid">';
@@ -4179,7 +4222,25 @@ JS;
     echo '<div class="be-qms-col-6"><strong>Address</strong><br/>'.esc_html($address ?: '-').'</div>';
     echo '<div class="be-qms-col-6"><strong>PV (kWp)</strong><br/>'.esc_html($pv_kwp ?: '-').'</div>';
     echo '<div class="be-qms-col-6"><strong>Battery (kWh)</strong><br/>'.esc_html($bess_kwh ?: '-').'</div>';
+    $display_contract_signed = $contract_signed ? self::format_date_for_display($contract_signed) : '—';
+    echo '<div class="be-qms-col-6"><strong>Date contract signed</strong><br/>'.esc_html($display_contract_signed).'</div>';
     echo '</div>';
+
+    echo '<h4 style="margin-top:14px">Customer handover checklist</h4>';
+    echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'">';
+    echo '<input type="hidden" name="action" value="be_qms_save_project_checklist" />';
+    echo '<input type="hidden" name="project_id" value="'.esc_attr($id).'" />';
+    wp_nonce_field('be_qms_save_project_checklist');
+    echo '<div class="be-qms-grid" style="margin-top:6px">';
+    foreach (self::project_handover_items() as $key => $label) {
+      $checked = !empty($handover_checklist[$key]) ? 'checked' : '';
+      echo '<div class="be-qms-col-6"><label><input type="checkbox" name="handover_checklist['.esc_attr($key).']" value="1" '.$checked.'> '.esc_html($label).'</label></div>';
+    }
+    echo '</div>';
+    echo '<div class="be-qms-row" style="margin-top:10px">';
+    echo '<button class="be-qms-btn be-qms-btn-secondary" type="submit">Save checklist</button>';
+    echo '</div>';
+    echo '</form>';
 
     if (!empty($notes)) {
       echo '<h4 style="margin-top:14px">Notes</h4>';
@@ -4285,7 +4346,15 @@ JS;
     update_post_meta($pid, '_be_qms_address', sanitize_text_field($_POST['address'] ?? ''));
     update_post_meta($pid, '_be_qms_pv_kwp', sanitize_text_field($_POST['pv_kwp'] ?? ''));
     update_post_meta($pid, '_be_qms_bess_kwh', sanitize_text_field($_POST['bess_kwh'] ?? ''));
+    update_post_meta($pid, '_be_qms_contract_signed', self::normalize_date_input($_POST['contract_signed'] ?? ''));
     update_post_meta($pid, '_be_qms_notes', wp_kses_post($_POST['notes'] ?? ''));
+
+    $handover = isset($_POST['handover_checklist']) ? (array) $_POST['handover_checklist'] : [];
+    $normalized_handover = [];
+    foreach (self::project_handover_items() as $key => $label) {
+      $normalized_handover[$key] = !empty($handover[$key]) ? 1 : 0;
+    }
+    update_post_meta($pid, '_be_qms_handover_checklist', $normalized_handover);
 
     $existing = get_post_meta($pid, '_be_qms_evidence', true);
     if (!is_array($existing)) $existing = [];
@@ -4304,6 +4373,30 @@ JS;
     update_post_meta($pid, '_be_qms_evidence', $existing);
 
     $url = add_query_arg(['view'=>'projects','be_action'=>'view','id'=>$pid], self::portal_url());
+    wp_safe_redirect($url);
+    exit;
+  }
+
+  public static function handle_save_project_checklist() {
+    self::require_staff();
+    check_admin_referer('be_qms_save_project_checklist');
+
+    $project_id = isset($_POST['project_id']) ? (int) $_POST['project_id'] : 0;
+    if (!$project_id) {
+      wp_die('Missing project.');
+    }
+    if (!current_user_can('edit_post', $project_id)) {
+      wp_die('No permission.');
+    }
+
+    $handover = isset($_POST['handover_checklist']) ? (array) $_POST['handover_checklist'] : [];
+    $normalized_handover = [];
+    foreach (self::project_handover_items() as $key => $label) {
+      $normalized_handover[$key] = !empty($handover[$key]) ? 1 : 0;
+    }
+    update_post_meta($project_id, '_be_qms_handover_checklist', $normalized_handover);
+
+    $url = add_query_arg(['view'=>'projects','be_action'=>'view','id'=>$project_id], self::portal_url());
     wp_safe_redirect($url);
     exit;
   }
