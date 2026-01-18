@@ -719,6 +719,7 @@ JS;
     $is_r07 = ($type === 'r07_training_matrix');
     $is_r04 = ($type === 'r04_tool_calibration');
     $is_r06 = ($type === 'r06_customer_complaints');
+    $is_r05 = ($type === 'r05_internal_review');
     $is_r02 = ($type === 'r02_capa');
     $is_r03 = ($type === 'r03_purchase_order');
     $is_r08 = ($type === 'r08_approved_suppliers');
@@ -742,6 +743,21 @@ JS;
       }
       if ($action === 'view' && !empty($_GET['id'])) {
         self::render_r04_tool_view((int) $_GET['id']);
+        return;
+      }
+    }
+
+    if ($is_r05) {
+      if ($action === 'new') {
+        self::render_r05_internal_review_form(0);
+        return;
+      }
+      if ($action === 'edit' && !empty($_GET['id'])) {
+        self::render_r05_internal_review_form((int) $_GET['id']);
+        return;
+      }
+      if ($action === 'view' && !empty($_GET['id'])) {
+        self::render_r05_internal_review_view((int) $_GET['id']);
         return;
       }
     }
@@ -885,6 +901,12 @@ JS;
 
     if ($is_r04) {
       self::render_r04_tool_list();
+      echo '</div></div>';
+      return;
+    }
+
+    if ($is_r05) {
+      self::render_r05_internal_review_list();
       echo '</div></div>';
       return;
     }
@@ -1761,6 +1783,280 @@ JS;
     echo '</div>';
 
     $back = esc_url(add_query_arg(['view'=>'records','type'=>'r04_tool_calibration'], self::portal_url()));
+    echo '<div class="be-qms-row" style="margin-top:12px"><a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Return to Records</a></div>';
+  }
+
+  // -------------------------
+  // R05 Internal Review Record
+  // -------------------------
+
+  private static function render_r05_internal_review_list() {
+    $add_url = esc_url(add_query_arg(['view'=>'records','type'=>'r05_internal_review','be_action'=>'new'], self::portal_url()));
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div>'
+      .'<h3 style="margin:0">R05 - Internal Review Record</h3>'
+      .'<div class="be-qms-muted">Log internal review meetings, findings, and actions.</div>'
+      .'</div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn" href="'.$add_url.'">Add New</a></div>';
+    echo '</div>';
+
+    $records = self::query_r05_internal_reviews();
+
+    echo '<table class="be-qms-table" style="margin-top:12px">';
+    echo '<thead><tr><th>Review Date</th><th>Period</th><th>Reviewer</th><th>Status</th><th>Options</th></tr></thead><tbody>';
+
+    if (!$records) {
+      echo '<tr><td colspan="5" class="be-qms-muted">No internal reviews yet. Click “Add New”.</td></tr>';
+    } else {
+      foreach ($records as $record) {
+        $rid = (int) $record->ID;
+        $review_date = get_post_meta($rid, '_be_qms_r05_review_date', true);
+        $period_from = get_post_meta($rid, '_be_qms_r05_period_from', true);
+        $period_to = get_post_meta($rid, '_be_qms_r05_period_to', true);
+        $reviewer = get_post_meta($rid, '_be_qms_r05_reviewer', true);
+        $status = get_post_meta($rid, '_be_qms_r05_status', true);
+
+        $view_url = esc_url(add_query_arg(['view'=>'records','type'=>'r05_internal_review','be_action'=>'view','id'=>$rid], self::portal_url()));
+        $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r05_internal_review','be_action'=>'edit','id'=>$rid], self::portal_url()));
+        $del_url  = esc_url(admin_url('admin-post.php?action=be_qms_delete&kind=record&id='.$rid.'&_wpnonce='.wp_create_nonce('be_qms_delete_'.$rid)));
+
+        $display_review = $review_date ? self::format_date_for_display($review_date) : '—';
+        $period_bits = array_filter([
+          $period_from ? self::format_date_for_display($period_from) : '',
+          $period_to ? self::format_date_for_display($period_to) : '',
+        ]);
+        $display_period = $period_bits ? implode(' – ', $period_bits) : '—';
+
+        echo '<tr>';
+        echo '<td>'.esc_html($display_review).'</td>';
+        echo '<td>'.esc_html($display_period).'</td>';
+        echo '<td>'.esc_html($reviewer ?: '—').'</td>';
+        echo '<td>'.esc_html($status ?: '—').'</td>';
+        echo '<td class="be-qms-row">'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$view_url.'">View</a>'
+          .'<a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a>'
+          .'<a class="be-qms-btn be-qms-btn-danger" href="'.$del_url.'" onclick="return confirm(\'Remove this internal review?\')">Remove</a>'
+          .'</td>';
+        echo '</tr>';
+      }
+    }
+
+    echo '</tbody></table>';
+  }
+
+  private static function query_r05_internal_reviews() {
+    $q = new WP_Query([
+      'post_type' => self::CPT_RECORD,
+      'post_status' => 'publish',
+      'posts_per_page' => 200,
+      'orderby' => 'date',
+      'order' => 'DESC',
+      'tax_query' => [[
+        'taxonomy' => self::TAX_RECORD_TYPE,
+        'field' => 'slug',
+        'terms' => ['r05_internal_review'],
+      ]],
+    ]);
+    return $q->have_posts() ? $q->posts : [];
+  }
+
+  private static function render_r05_internal_review_form($id) {
+    $is_edit = $id > 0;
+    $p = $is_edit ? get_post($id) : null;
+    if ($is_edit && (!$p || $p->post_type !== self::CPT_RECORD)) {
+      echo '<div class="be-qms-muted">Record not found.</div>';
+      return;
+    }
+
+    $review_date = $is_edit ? get_post_meta($id, '_be_qms_r05_review_date', true) : '';
+    $period_from = $is_edit ? get_post_meta($id, '_be_qms_r05_period_from', true) : '';
+    $period_to = $is_edit ? get_post_meta($id, '_be_qms_r05_period_to', true) : '';
+    $reviewer = $is_edit ? get_post_meta($id, '_be_qms_r05_reviewer', true) : '';
+    $attendees = $is_edit ? get_post_meta($id, '_be_qms_r05_attendees', true) : '';
+    $scope = $is_edit ? get_post_meta($id, '_be_qms_r05_scope', true) : '';
+    $findings = $is_edit ? get_post_meta($id, '_be_qms_r05_findings', true) : '';
+    $nonconformities = $is_edit ? get_post_meta($id, '_be_qms_r05_nonconformities', true) : '';
+    $actions = $is_edit ? get_post_meta($id, '_be_qms_r05_actions', true) : '';
+    $decision = $is_edit ? get_post_meta($id, '_be_qms_r05_decision', true) : '';
+    $next_review_date = $is_edit ? get_post_meta($id, '_be_qms_r05_next_review_date', true) : '';
+    $status = $is_edit ? get_post_meta($id, '_be_qms_r05_status', true) : '';
+    $existing_att_ids = $is_edit ? get_post_meta($id, '_be_qms_attachments', true) : [];
+    if (!is_array($existing_att_ids)) $existing_att_ids = [];
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R05 - Internal Review Record</h3>';
+    echo '<div class="be-qms-muted">'.($is_edit ? 'Edit internal review' : 'Add internal review').'</div></div>';
+    echo '</div>';
+
+    echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" enctype="multipart/form-data" style="margin-top:12px">';
+    echo '<input type="hidden" name="action" value="be_qms_save_record" />';
+    echo '<input type="hidden" name="record_type" value="r05_internal_review" />';
+    wp_nonce_field('be_qms_save_record');
+    if ($is_edit) {
+      echo '<input type="hidden" name="record_id" value="'.esc_attr($id).'" />';
+    }
+
+    echo '<div class="be-qms-grid">';
+
+    echo '<div class="be-qms-col-4"><label><strong>Review date</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="r05_review_date" value="'.esc_attr(self::format_date_for_display($review_date)).'" placeholder="DD/MM/YYYY" required /></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>Period from</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="r05_period_from" value="'.esc_attr(self::format_date_for_display($period_from)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '<div class="be-qms-col-4"><label><strong>Period to</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="r05_period_to" value="'.esc_attr(self::format_date_for_display($period_to)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Reviewer</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r05_reviewer" value="'.esc_attr($reviewer).'" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Attendees</strong><br/>';
+    echo '<input class="be-qms-input" type="text" name="r05_attendees" value="'.esc_attr($attendees).'" placeholder="e.g. J. Smith, A. Patel" /></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Scope / areas reviewed</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="r05_scope">'.esc_textarea($scope).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Findings summary</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="r05_findings">'.esc_textarea($findings).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Nonconformities / observations</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="r05_nonconformities">'.esc_textarea($nonconformities).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Actions / follow-ups</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="r05_actions">'.esc_textarea($actions).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Decision / approval</strong><br/>';
+    echo '<textarea class="be-qms-textarea" name="r05_decision">'.esc_textarea($decision).'</textarea></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Next review date</strong><br/>';
+    echo '<input class="be-qms-input be-qms-date" type="text" name="r05_next_review_date" value="'.esc_attr(self::format_date_for_display($next_review_date)).'" placeholder="DD/MM/YYYY" /></label></div>';
+
+    echo '<div class="be-qms-col-6"><label><strong>Status</strong><br/>';
+    echo '<select class="be-qms-select" name="r05_status">';
+    $status_options = ['Open', 'Closed'];
+    echo '<option value="">— Select —</option>';
+    foreach ($status_options as $option) {
+      $selected = ($status === $option) ? 'selected' : '';
+      echo '<option '.$selected.' value="'.esc_attr($option).'">'.esc_html($option).'</option>';
+    }
+    echo '</select></label></div>';
+
+    echo '<div class="be-qms-col-12"><label><strong>Attachments</strong> <span class="be-qms-muted">(optional)</span><br/>';
+    echo '<input type="file" name="attachments[]" multiple /></label></div>';
+
+    if ($is_edit) {
+      echo '<div class="be-qms-col-12"><strong>Existing attachments</strong><br/>';
+      if (!$existing_att_ids) {
+        echo '<div class="be-qms-muted">None.</div>';
+      } else {
+        echo '<div class="be-qms-muted">Tick to remove on save:</div>';
+        echo '<ul style="margin:8px 0 0 18px">';
+        foreach ($existing_att_ids as $aid) {
+          $url = wp_get_attachment_url($aid);
+          $name = get_the_title($aid);
+          if (!$url) continue;
+          echo '<li><label style="display:flex;gap:10px;align-items:center">'
+            .'<input type="checkbox" name="remove_attachments[]" value="'.esc_attr($aid).'">'
+            .'<a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name ?: basename($url)).'</a>'
+            .'</label></li>';
+        }
+        echo '</ul>';
+      }
+      echo '</div>';
+    }
+
+    echo '</div>'; // grid
+
+    echo '<div class="be-qms-row" style="margin-top:12px">';
+    echo '<button class="be-qms-btn" type="submit">'.($is_edit ? 'Save changes' : 'Save').'</button>';
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r05_internal_review'], self::portal_url()));
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Return to Records</a>';
+    echo '</div>';
+
+    echo '</form>';
+  }
+
+  private static function render_r05_internal_review_view($id) {
+    $p = get_post($id);
+    if (!$p || $p->post_type !== self::CPT_RECORD) {
+      echo '<div class="be-qms-muted">Record not found.</div>';
+      return;
+    }
+
+    $review_date = get_post_meta($id, '_be_qms_r05_review_date', true);
+    $period_from = get_post_meta($id, '_be_qms_r05_period_from', true);
+    $period_to = get_post_meta($id, '_be_qms_r05_period_to', true);
+    $reviewer = get_post_meta($id, '_be_qms_r05_reviewer', true);
+    $attendees = get_post_meta($id, '_be_qms_r05_attendees', true);
+    $scope = get_post_meta($id, '_be_qms_r05_scope', true);
+    $findings = get_post_meta($id, '_be_qms_r05_findings', true);
+    $nonconformities = get_post_meta($id, '_be_qms_r05_nonconformities', true);
+    $actions = get_post_meta($id, '_be_qms_r05_actions', true);
+    $decision = get_post_meta($id, '_be_qms_r05_decision', true);
+    $next_review_date = get_post_meta($id, '_be_qms_r05_next_review_date', true);
+    $status = get_post_meta($id, '_be_qms_r05_status', true);
+    $att_ids = get_post_meta($id, '_be_qms_attachments', true);
+    if (!is_array($att_ids)) $att_ids = [];
+
+    $edit_url = esc_url(add_query_arg(['view'=>'records','type'=>'r05_internal_review','be_action'=>'edit','id'=>$id], self::portal_url()));
+
+    $display_review = $review_date ? self::format_date_for_display($review_date) : '—';
+    $period_bits = array_filter([
+      $period_from ? self::format_date_for_display($period_from) : '',
+      $period_to ? self::format_date_for_display($period_to) : '',
+    ]);
+    $display_period = $period_bits ? implode(' – ', $period_bits) : '—';
+    $display_next = $next_review_date ? self::format_date_for_display($next_review_date) : '—';
+
+    echo '<div class="be-qms-row" style="justify-content:space-between">';
+    echo '<div><h3 style="margin:0">R05 - Internal Review Record</h3>';
+    echo '<div class="be-qms-muted">Review date: '.esc_html($display_review).'</div></div>';
+    echo '<div class="be-qms-row"><a class="be-qms-btn be-qms-btn-secondary" href="'.$edit_url.'">Edit</a></div>';
+    echo '</div>';
+
+    echo '<div class="be-qms-card" style="margin-top:14px">';
+    echo '<table class="be-qms-table">';
+    echo '<tr><th>Review date</th><td>'.esc_html($display_review).'</td></tr>';
+    echo '<tr><th>Review period</th><td>'.esc_html($display_period).'</td></tr>';
+    echo '<tr><th>Reviewer</th><td>'.esc_html($reviewer ?: '—').'</td></tr>';
+    echo '<tr><th>Attendees</th><td>'.esc_html($attendees ?: '—').'</td></tr>';
+    echo '<tr><th>Status</th><td>'.esc_html($status ?: '—').'</td></tr>';
+    echo '<tr><th>Next review date</th><td>'.esc_html($display_next).'</td></tr>';
+    echo '</table>';
+
+    echo '<h4 style="margin-top:14px">Scope / areas reviewed</h4>';
+    echo '<div>'.wpautop(esc_html($scope)).'</div>';
+
+    echo '<h4 style="margin-top:14px">Findings summary</h4>';
+    echo '<div>'.wpautop(esc_html($findings)).'</div>';
+
+    echo '<h4 style="margin-top:14px">Nonconformities / observations</h4>';
+    echo '<div>'.wpautop(esc_html($nonconformities)).'</div>';
+
+    echo '<h4 style="margin-top:14px">Actions / follow-ups</h4>';
+    echo '<div>'.wpautop(esc_html($actions)).'</div>';
+
+    echo '<h4 style="margin-top:14px">Decision / approval</h4>';
+    echo '<div>'.wpautop(esc_html($decision)).'</div>';
+
+    echo '<h4 style="margin-top:14px">Attachments</h4>';
+    if (!$att_ids) {
+      echo '<div class="be-qms-muted">None.</div>';
+    } else {
+      echo '<ul>';
+      foreach ($att_ids as $aid) {
+        $url = wp_get_attachment_url($aid);
+        $name = get_the_title($aid);
+        if ($url) {
+          echo '<li><a class="be-qms-link" target="_blank" href="'.esc_url($url).'">'.esc_html($name ?: basename($url)).'</a></li>';
+        }
+      }
+      echo '</ul>';
+    }
+    echo '</div>';
+
+    $back = esc_url(add_query_arg(['view'=>'records','type'=>'r05_internal_review'], self::portal_url()));
     echo '<div class="be-qms-row" style="margin-top:12px"><a class="be-qms-btn be-qms-btn-secondary" href="'.$back.'">Return to Records</a></div>';
   }
 
@@ -3804,6 +4100,40 @@ JS;
       $date = $capa_date ?: date('Y-m-d');
       $details = $details_issue;
       $actions = $summary_action;
+    } elseif ($type === 'r05_internal_review') {
+      $review_date = self::normalize_date_input($_POST['r05_review_date'] ?? '');
+      $period_from = self::normalize_date_input($_POST['r05_period_from'] ?? '');
+      $period_to = self::normalize_date_input($_POST['r05_period_to'] ?? '');
+      $reviewer = sanitize_text_field($_POST['r05_reviewer'] ?? '');
+      $attendees = sanitize_text_field($_POST['r05_attendees'] ?? '');
+      $scope = sanitize_textarea_field($_POST['r05_scope'] ?? '');
+      $findings = sanitize_textarea_field($_POST['r05_findings'] ?? '');
+      $nonconformities = sanitize_textarea_field($_POST['r05_nonconformities'] ?? '');
+      $actions_taken = sanitize_textarea_field($_POST['r05_actions'] ?? '');
+      $decision = sanitize_textarea_field($_POST['r05_decision'] ?? '');
+      $next_review_date = self::normalize_date_input($_POST['r05_next_review_date'] ?? '');
+      $status = sanitize_text_field($_POST['r05_status'] ?? '');
+      $allowed_statuses = ['Open', 'Closed'];
+      if (!in_array($status, $allowed_statuses, true)) {
+        $status = '';
+      }
+
+      if (!$review_date) {
+        wp_die('Missing review date.');
+      }
+
+      $period_bits = array_filter([
+        $period_from ? self::format_date_for_display($period_from) : '',
+        $period_to ? self::format_date_for_display($period_to) : '',
+      ]);
+      $title_bits = array_filter([
+        $period_bits ? implode(' – ', $period_bits) : '',
+        $reviewer ?: '',
+      ]);
+      $title = $title ?: ('R05 Internal Review' . ($title_bits ? (' – ' . implode(' • ', $title_bits)) : ''));
+      $date = $review_date ?: date('Y-m-d');
+      $details = $findings ?: $scope;
+      $actions = $actions_taken;
     } elseif ($type === 'r03_purchase_order') {
       $po_number = sanitize_text_field($_POST['r03_po_number'] ?? '');
       $customer_ref = sanitize_text_field($_POST['r03_customer_ref'] ?? '');
@@ -3970,6 +4300,21 @@ JS;
       update_post_meta($pid, '_be_qms_capa_summary_action', $summary_action);
       update_post_meta($pid, '_be_qms_capa_root_cause', $root_cause);
       update_post_meta($pid, '_be_qms_capa_prevent_recurrence', $prevent_recurrence);
+    }
+
+    if ($type === 'r05_internal_review') {
+      update_post_meta($pid, '_be_qms_r05_review_date', $review_date);
+      update_post_meta($pid, '_be_qms_r05_period_from', $period_from);
+      update_post_meta($pid, '_be_qms_r05_period_to', $period_to);
+      update_post_meta($pid, '_be_qms_r05_reviewer', $reviewer);
+      update_post_meta($pid, '_be_qms_r05_attendees', $attendees);
+      update_post_meta($pid, '_be_qms_r05_scope', $scope);
+      update_post_meta($pid, '_be_qms_r05_findings', $findings);
+      update_post_meta($pid, '_be_qms_r05_nonconformities', $nonconformities);
+      update_post_meta($pid, '_be_qms_r05_actions', $actions_taken);
+      update_post_meta($pid, '_be_qms_r05_decision', $decision);
+      update_post_meta($pid, '_be_qms_r05_next_review_date', $next_review_date);
+      update_post_meta($pid, '_be_qms_r05_status', $status);
     }
 
     if ($type === 'r03_purchase_order') {
