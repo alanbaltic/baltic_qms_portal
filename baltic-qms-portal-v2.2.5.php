@@ -2128,6 +2128,11 @@ JS;
     $battery_model = $is_edit ? get_post_meta($id, '_be_qms_r03_battery_model', true) : '';
     $other_equipment = $is_edit ? get_post_meta($id, '_be_qms_r03_other_equipment', true) : '';
     $linked_project = $is_edit ? (int) get_post_meta($id, self::META_PROJECT_LINK, true) : 0;
+    $is_template = $is_edit ? get_post_meta($id, '_be_qms_r03_is_template', true) : '';
+    $template_name = '';
+    if ($is_edit && $is_template) {
+      $template_name = get_post_meta($id, '_be_qms_r03_template_name', true) ?: $p->post_title;
+    }
 
     if (!$is_edit && $template_ok) {
       $po_number = get_post_meta($template_id, '_be_qms_r03_po_number', true);
@@ -2257,7 +2262,10 @@ JS;
     }
     echo '</select></label></div>';
 
-    echo '<div class="be-qms-col-12"><label><input type="checkbox" name="r03_save_template" value="1" /> Save this purchase order as a template</label></div>';
+    $template_checked = $is_template ? 'checked' : '';
+    echo '<div class="be-qms-col-12"><label><input type="checkbox" name="r03_save_template" value="1" '.$template_checked.' /> Save this purchase order as a template</label></div>';
+    echo '<div class="be-qms-col-12"><label><strong>Template name</strong> <span class="be-qms-muted">(used when saving as a template)</span><br/>';
+    echo '<input class="be-qms-input" type="text" name="r03_template_name" value="'.esc_attr($template_name).'" placeholder="e.g. Morgan Sindall kit list" /></label></div>';
 
     echo '</div>';
 
@@ -3746,12 +3754,17 @@ JS;
       $battery_model = sanitize_text_field($_POST['r03_battery_model'] ?? '');
       $other_equipment = sanitize_textarea_field($_POST['r03_other_equipment'] ?? '');
       $save_template = !empty($_POST['r03_save_template']) ? '1' : '';
+      $template_name = sanitize_text_field($_POST['r03_template_name'] ?? '');
 
       $title_bits = array_filter([
         $po_number ? ('PO ' . $po_number) : '',
         $supplier_name ?: '',
       ]);
-      $title = $title ?: ('R03 Purchase Order' . ($title_bits ? (' – ' . implode(' • ', $title_bits)) : ''));
+      if ($save_template && $template_name) {
+        $title = 'R03 Template – ' . $template_name;
+      } else {
+        $title = $title ?: ('R03 Purchase Order' . ($title_bits ? (' – ' . implode(' • ', $title_bits)) : ''));
+      }
       $date = $date_raised ?: date('Y-m-d');
       $details = $description;
       $actions = '';
@@ -3909,8 +3922,10 @@ JS;
       update_post_meta($pid, '_be_qms_r03_other_equipment', $other_equipment);
       if ($save_template) {
         update_post_meta($pid, '_be_qms_r03_is_template', '1');
+        update_post_meta($pid, '_be_qms_r03_template_name', $template_name);
       } else {
         delete_post_meta($pid, '_be_qms_r03_is_template');
+        delete_post_meta($pid, '_be_qms_r03_template_name');
       }
     }
 
