@@ -252,6 +252,34 @@ class BE_QMS_Portal {
 .ui-datepicker .ui-state-default{ background:#111827; border:1px solid #334155; color:#e2e8f0; border-radius:8px; text-align:center; }
 .ui-datepicker .ui-state-hover{ background:#0f172a; border-color:#475569; }
 .ui-datepicker .ui-state-active{ background:#10b981; border-color:#10b981; color:#020617; }
+
+/* Manual (PDF -> HTML render) */
+.be-qms-manual-viewer{ border:1px solid rgba(148,163,184,.5); border-radius:10px; overflow:hidden; }
+.be-qms-manual-panel{ background:#0f172a; }
+.be-qms-manual-panel[hidden]{ display:none; }
+.be-qms-manual-html{ background:#e2e8f0; padding:18px; }
+.be-qms-manual-status{ color:#0f172a; font-weight:700; margin:0 0 12px 0; }
+.be-qms-manual-page{
+  background:#ffffff;
+  margin:0 auto 18px auto;
+  padding:16px;
+  border-radius:10px;
+  box-shadow:0 12px 32px rgba(15,23,42,.15);
+  position:relative;
+}
+.be-qms-manual-canvas{ display:block; max-width:100%; height:auto; }
+.be-qms-manual-text-layer{
+  position:absolute;
+  inset:16px;
+  color:#0f172a;
+}
+.be-qms-manual-text-layer span{
+  position:absolute;
+  transform-origin:0 0;
+  white-space:pre;
+  line-height:1.2;
+}
+.be-qms-manual-toggle.is-active{ background:rgba(16,185,129,.14); border-color:rgba(52,211,153,.55); box-shadow:0 0 0 4px rgba(16,185,129,.12); }
 CSS;
 
     wp_register_style('be-qms-inline', false);
@@ -307,6 +335,103 @@ jQuery(function($){
 });
 JS;
     wp_add_inline_script('jquery-ui-datepicker', $js);
+
+    wp_enqueue_script(
+      'be-qms-pdfjs',
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js',
+      [],
+      null,
+      true
+    );
+    $pdf_js = <<<'JS'
+document.addEventListener('DOMContentLoaded', () => {
+  const htmlPanel = document.querySelector('.be-qms-manual-html[data-manual-pdf]');
+  if (!htmlPanel) return;
+  const pdfPanel = document.querySelector('[data-manual-panel="pdf"]');
+  const toggles = document.querySelectorAll('[data-manual-toggle]');
+
+  function setActivePanel(target) {
+    toggles.forEach((toggle) => {
+      toggle.classList.toggle('is-active', toggle.dataset.manualToggle === target);
+    });
+    if (pdfPanel) {
+      pdfPanel.hidden = target !== 'pdf';
+    }
+    htmlPanel.hidden = target !== 'html';
+    if (target === 'html') {
+      renderPdfToHtml(htmlPanel);
+    }
+  }
+
+  async function renderPdfToHtml(container) {
+    if (container.dataset.loaded === 'true') return;
+    const status = container.querySelector('.be-qms-manual-status');
+    const pdfUrl = container.dataset.manualPdf;
+    const pdfjsLib = window.pdfjsLib;
+    if (!pdfjsLib || !pdfUrl) {
+      if (status) status.textContent = 'Unable to load PDF renderer.';
+      return;
+    }
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js';
+
+    if (status) status.textContent = 'Loading manual...';
+
+    try {
+      const loadingTask = pdfjsLib.getDocument({ url: pdfUrl });
+      const pdf = await loadingTask.promise;
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 1.2 });
+        const pageWrapper = document.createElement('div');
+        pageWrapper.className = 'be-qms-manual-page';
+        pageWrapper.style.width = `${viewport.width + 32}px`;
+        pageWrapper.style.height = `${viewport.height + 32}px`;
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'be-qms-manual-canvas';
+        const context = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        pageWrapper.appendChild(canvas);
+
+        const textLayer = document.createElement('div');
+        textLayer.className = 'be-qms-manual-text-layer';
+        textLayer.style.width = `${viewport.width}px`;
+        textLayer.style.height = `${viewport.height}px`;
+        pageWrapper.appendChild(textLayer);
+
+        container.appendChild(pageWrapper);
+
+        await page.render({ canvasContext: context, viewport }).promise;
+        const textContent = await page.getTextContent();
+        pdfjsLib.renderTextLayer({
+          textContent,
+          container: textLayer,
+          viewport,
+          textDivs: [],
+        });
+      }
+      if (status) status.textContent = 'Manual loaded.';
+      container.dataset.loaded = 'true';
+    } catch (error) {
+      console.error(error);
+      if (status) status.textContent = 'Unable to render the manual from the PDF.';
+    }
+  }
+
+  toggles.forEach((toggle) => {
+    toggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      setActivePanel(toggle.dataset.manualToggle);
+    });
+  });
+
+  setActivePanel('pdf');
+});
+JS;
+    wp_add_inline_script('be-qms-pdfjs', $pdf_js);
   }
 
   private static function project_handover_items() {
@@ -552,10 +677,17 @@ JS;
     echo '<div class="be-qms-row" style="margin-bottom:12px">';
     echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_docx.'">Download DOCX</a>';
     echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_pdf_download.'">Download PDF</a>';
-    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_pdf.'" target="_blank" rel="noopener">View manual</a>';
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_pdf.'" target="_blank" rel="noopener">Open PDF</a>';
+    echo '<button class="be-qms-btn be-qms-btn-secondary be-qms-manual-toggle" data-manual-toggle="pdf" type="button">Inline PDF</button>';
+    echo '<button class="be-qms-btn be-qms-btn-secondary be-qms-manual-toggle" data-manual-toggle="html" type="button">Readable view</button>';
     echo '</div>';
-    echo '<div style="border:1px solid rgba(148,163,184,.5);border-radius:10px;overflow:hidden;height:720px">';
-    echo '<iframe title="Documented Procedure Manual" src="'.$manual_pdf.'" style="width:100%;height:100%;border:0"></iframe>';
+    echo '<div class="be-qms-manual-viewer">';
+    echo '<div class="be-qms-manual-panel" data-manual-panel="pdf">';
+    echo '<iframe title="Documented Procedure Manual" src="'.$manual_pdf.'" style="width:100%;height:720px;border:0"></iframe>';
+    echo '</div>';
+    echo '<div class="be-qms-manual-panel be-qms-manual-html" data-manual-panel="html" data-manual-pdf="'.$manual_pdf.'" hidden>';
+    echo '<div class="be-qms-manual-status">Loading manual...</div>';
+    echo '</div>';
     echo '</div>';
     echo '</div>';
   }
