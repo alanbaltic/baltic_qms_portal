@@ -543,17 +543,17 @@ JS;
 
   private static function render_manual() {
     $manual_docx = esc_url(add_query_arg(['be_qms_ref'=>'manual_docx'], self::portal_url()));
-    $manual_pdf  = esc_url(add_query_arg(['be_qms_ref'=>'manual_pdf', 'be_qms_inline' => '1'], self::portal_url()));
+    $manual_view = esc_url('https://docs.google.com/gview?embedded=true&url=' . rawurlencode($manual_docx));
 
     echo '<div class="be-qms-card-inner">';
     echo '<h3>Documented Procedure Manual</h3>';
     echo '<p class="be-qms-muted">Use this as your core documented procedure manual for assessments and internal control.</p>';
     echo '<div class="be-qms-row" style="margin-bottom:12px">';
     echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_docx.'">Download DOCX</a>';
-    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_pdf.'" target="_blank">Open PDF</a>';
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_view.'" target="_blank" rel="noopener">View manual</a>';
     echo '</div>';
     echo '<div style="border:1px solid rgba(148,163,184,.5);border-radius:10px;overflow:hidden;height:720px">';
-    echo '<iframe title="Documented Procedure Manual" src="'.$manual_pdf.'" style="width:100%;height:100%;border:0"></iframe>';
+    echo '<iframe title="Documented Procedure Manual" src="'.$manual_view.'" style="width:100%;height:100%;border:0"></iframe>';
     echo '</div>';
     echo '</div>';
   }
@@ -5086,17 +5086,16 @@ JS;
       self::require_staff();
       $key = sanitize_key($_GET['be_qms_ref']);
       $map = [
-        'manual_docx' => 'assets/documented-procedure-manual-baltic.docx',
-        'manual_pdf'  => 'assets/documented-procedure-manual-baltic.pdf',
+        'manual_docx' => 'Documented-Procedure-Manual-Baltic-Appendices-Filled.docx',
+        'manual_pdf'  => 'Documented-Procedure-Manual-Baltic-Appendices-Filled.docx',
       ];
       if (empty($map[$key])) wp_die('Unknown reference file');
       $file = plugin_dir_path(__FILE__) . $map[$key];
       if (!file_exists($file)) wp_die('File missing');
-      $is_pdf = ($key === 'manual_pdf');
-      $mime = $is_pdf ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+      $mime = ($ext === 'pdf') ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
       header('Content-Type: ' . $mime);
-      $disposition = (!empty($_GET['be_qms_inline']) && $is_pdf) ? 'inline' : 'attachment';
-      header('Content-Disposition: ' . $disposition . '; filename="' . basename($file) . '"');
+      header('Content-Disposition: attachment; filename="' . basename($file) . '"');
       header('Content-Length: ' . filesize($file));
       readfile($file);
       exit;
