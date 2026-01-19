@@ -5079,6 +5079,61 @@ JS;
     return home_url('/qms-portal/');
   }
 
+  private static function resolve_reference_file($key) {
+    $map = [
+      'manual_docx' => 'Documented-Procedure-Manual-Baltic-Appendices-Filled.docx',
+      'manual_pdf'  => 'Documented-Procedure-Manual-Baltic-Appendices-Filled.pdf',
+    ];
+    if (empty($map[$key])) {
+      return null;
+    }
+
+    $filename = $map[$key];
+    $plugin_path = plugin_dir_path(__FILE__) . $filename;
+    if (file_exists($plugin_path)) {
+      return [
+        'path' => $plugin_path,
+        'filename' => $filename,
+      ];
+    }
+
+    $uploads = wp_upload_dir();
+    if (!empty($uploads['basedir'])) {
+      $root_upload_path = trailingslashit($uploads['basedir']) . $filename;
+      if (file_exists($root_upload_path)) {
+        return [
+          'path' => $root_upload_path,
+          'filename' => $filename,
+        ];
+      }
+    }
+
+    $attachments = get_posts([
+      'post_type' => 'attachment',
+      'post_status' => 'inherit',
+      'posts_per_page' => 1,
+      'fields' => 'ids',
+      'meta_query' => [
+        [
+          'key' => '_wp_attached_file',
+          'value' => $filename,
+          'compare' => 'LIKE',
+        ],
+      ],
+    ]);
+    if (!empty($attachments[0])) {
+      $attached_path = get_attached_file((int) $attachments[0]);
+      if (!empty($attached_path) && file_exists($attached_path)) {
+        return [
+          'path' => $attached_path,
+          'filename' => basename($attached_path),
+        ];
+      }
+    }
+
+    return null;
+  }
+
   /* -------------------------------
    * Exports (DOC / Print) + bundled refs
    * ------------------------------*/
@@ -5087,20 +5142,18 @@ JS;
     if (!empty($_GET['be_qms_ref'])) {
       self::require_staff();
       $key = sanitize_key($_GET['be_qms_ref']);
-      $map = [
-        'manual_docx' => 'Documented-Procedure-Manual-Baltic-Appendices-Filled.docx',
-        'manual_pdf'  => 'Documented-Procedure-Manual-Baltic-Appendices-Filled.pdf',
-      ];
-      if (empty($map[$key])) wp_die('Unknown reference file');
-      $file = plugin_dir_path(__FILE__) . $map[$key];
-      if (!file_exists($file)) wp_die('File missing');
-      $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+      $reference = self::resolve_reference_file($key);
+      if (!$reference) {
+        wp_die('File missing. Upload the file to your WordPress Media Library or place it alongside the plugin file.');
+      }
+      $file = $reference['path'];
+      $ext = strtolower(pathinfo($reference['filename'], PATHINFO_EXTENSION));
       $mime = ($ext === 'pdf') ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
       header('Content-Type: ' . $mime);
       if ($ext === 'pdf' && empty($_GET['download'])) {
-        header('Content-Disposition: inline; filename="' . basename($file) . '"');
+        header('Content-Disposition: inline; filename="' . $reference['filename'] . '"');
       } else {
-        header('Content-Disposition: attachment; filename="' . basename($file) . '"');
+        header('Content-Disposition: attachment; filename="' . $reference['filename'] . '"');
       }
       header('Content-Length: ' . filesize($file));
       readfile($file);
