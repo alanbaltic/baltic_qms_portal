@@ -252,6 +252,34 @@ class BE_QMS_Portal {
 .ui-datepicker .ui-state-default{ background:#111827; border:1px solid #334155; color:#e2e8f0; border-radius:8px; text-align:center; }
 .ui-datepicker .ui-state-hover{ background:#0f172a; border-color:#475569; }
 .ui-datepicker .ui-state-active{ background:#10b981; border-color:#10b981; color:#020617; }
+
+/* Manual (PDF -> HTML render) */
+.be-qms-manual-viewer{ border:1px solid rgba(148,163,184,.5); border-radius:10px; overflow:hidden; }
+.be-qms-manual-panel{ background:#0f172a; }
+.be-qms-manual-panel[hidden]{ display:none; }
+.be-qms-manual-html{ background:#e2e8f0; padding:18px; }
+.be-qms-manual-status{ color:#0f172a; font-weight:700; margin:0 0 12px 0; }
+.be-qms-manual-page{
+  background:#ffffff;
+  margin:0 auto 18px auto;
+  padding:16px;
+  border-radius:10px;
+  box-shadow:0 12px 32px rgba(15,23,42,.15);
+  position:relative;
+}
+.be-qms-manual-canvas{ display:block; max-width:100%; height:auto; }
+.be-qms-manual-text-layer{
+  position:absolute;
+  inset:16px;
+  color:#0f172a;
+}
+.be-qms-manual-text-layer span{
+  position:absolute;
+  transform-origin:0 0;
+  white-space:pre;
+  line-height:1.2;
+}
+.be-qms-manual-toggle.is-active{ background:rgba(16,185,129,.14); border-color:rgba(52,211,153,.55); box-shadow:0 0 0 4px rgba(16,185,129,.12); }
 CSS;
 
     wp_register_style('be-qms-inline', false);
@@ -307,6 +335,150 @@ jQuery(function($){
 });
 JS;
     wp_add_inline_script('jquery-ui-datepicker', $js);
+
+    wp_enqueue_script(
+      'be-qms-pdfjs',
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js',
+      [],
+      null,
+      true
+    );
+    $pdf_js = <<<'JS'
+document.addEventListener('DOMContentLoaded', () => {
+  const htmlPanel = document.querySelector('.be-qms-manual-html[data-manual-pdf]');
+  if (!htmlPanel) return;
+  const pdfPanel = document.querySelector('[data-manual-panel="pdf"]');
+  const toggles = document.querySelectorAll('[data-manual-toggle]');
+  const pdfScriptSources = [
+    {
+      script: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js',
+      worker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js',
+    },
+    {
+      script: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.js',
+      worker: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.worker.min.js',
+    },
+    {
+      script: 'https://unpkg.com/pdfjs-dist@4.0.379/build/pdf.min.js',
+      worker: 'https://unpkg.com/pdfjs-dist@4.0.379/build/pdf.worker.min.js',
+    },
+  ];
+
+  function setActivePanel(target) {
+    toggles.forEach((toggle) => {
+      toggle.classList.toggle('is-active', toggle.dataset.manualToggle === target);
+    });
+    if (pdfPanel) {
+      pdfPanel.hidden = target !== 'pdf';
+    }
+    htmlPanel.hidden = target !== 'html';
+    if (target === 'html') {
+      renderPdfToHtml(htmlPanel);
+    }
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector(`script[src="${src}"]`);
+      if (existing) {
+        existing.addEventListener('load', resolve);
+        existing.addEventListener('error', reject);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  async function ensurePdfJsLoaded() {
+    if (window.pdfjsLib) return { loaded: true, workerSrc: null };
+    for (const source of pdfScriptSources) {
+      try {
+        await loadScript(source.script);
+      } catch (error) {
+        continue;
+      }
+      if (window.pdfjsLib) return { loaded: true, workerSrc: source.worker };
+    }
+    return { loaded: false, workerSrc: null };
+  }
+
+  async function renderPdfToHtml(container) {
+    if (container.dataset.loaded === 'true') return;
+    const status = container.querySelector('.be-qms-manual-status');
+    const pdfUrl = container.dataset.manualPdf;
+    const pdfLoadResult = await ensurePdfJsLoaded();
+    const pdfjsLib = window.pdfjsLib;
+    if (!pdfLoadResult.loaded || !pdfjsLib || !pdfUrl) {
+      if (status) {
+        status.textContent = 'Unable to load PDF renderer. Please allow the PDF.js CDN or contact support.';
+      }
+      return;
+    }
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      pdfLoadResult.workerSrc || 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js';
+
+    if (status) status.textContent = 'Loading manual...';
+
+    try {
+      const loadingTask = pdfjsLib.getDocument({ url: pdfUrl });
+      const pdf = await loadingTask.promise;
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 1.2 });
+        const pageWrapper = document.createElement('div');
+        pageWrapper.className = 'be-qms-manual-page';
+        pageWrapper.style.width = `${viewport.width + 32}px`;
+        pageWrapper.style.height = `${viewport.height + 32}px`;
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'be-qms-manual-canvas';
+        const context = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        pageWrapper.appendChild(canvas);
+
+        const textLayer = document.createElement('div');
+        textLayer.className = 'be-qms-manual-text-layer';
+        textLayer.style.width = `${viewport.width}px`;
+        textLayer.style.height = `${viewport.height}px`;
+        pageWrapper.appendChild(textLayer);
+
+        container.appendChild(pageWrapper);
+
+        await page.render({ canvasContext: context, viewport }).promise;
+        const textContent = await page.getTextContent();
+        pdfjsLib.renderTextLayer({
+          textContent,
+          container: textLayer,
+          viewport,
+          textDivs: [],
+        });
+      }
+      if (status) status.textContent = 'Manual loaded.';
+      container.dataset.loaded = 'true';
+    } catch (error) {
+      console.error(error);
+      if (status) status.textContent = 'Unable to render the manual from the PDF.';
+    }
+  }
+
+  toggles.forEach((toggle) => {
+    toggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      setActivePanel(toggle.dataset.manualToggle);
+    });
+  });
+
+  setActivePanel('pdf');
+});
+JS;
+    wp_add_inline_script('be-qms-pdfjs', $pdf_js);
   }
 
   private static function project_handover_items() {
@@ -543,17 +715,26 @@ JS;
 
   private static function render_manual() {
     $manual_docx = esc_url(add_query_arg(['be_qms_ref'=>'manual_docx'], self::portal_url()));
-    $manual_view = esc_url('https://docs.google.com/gview?embedded=true&url=' . rawurlencode($manual_docx));
+    $manual_pdf = esc_url(add_query_arg(['be_qms_ref'=>'manual_pdf'], self::portal_url()));
+    $manual_pdf_download = esc_url(add_query_arg(['be_qms_ref'=>'manual_pdf', 'download' => '1'], self::portal_url()));
 
     echo '<div class="be-qms-card-inner">';
     echo '<h3>Documented Procedure Manual</h3>';
     echo '<p class="be-qms-muted">Use this as your core documented procedure manual for assessments and internal control.</p>';
     echo '<div class="be-qms-row" style="margin-bottom:12px">';
     echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_docx.'">Download DOCX</a>';
-    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_view.'" target="_blank" rel="noopener">View manual</a>';
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_pdf_download.'">Download PDF</a>';
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$manual_pdf.'" target="_blank" rel="noopener">Open PDF</a>';
+    echo '<button class="be-qms-btn be-qms-btn-secondary be-qms-manual-toggle" data-manual-toggle="pdf" type="button">Inline PDF</button>';
+    echo '<button class="be-qms-btn be-qms-btn-secondary be-qms-manual-toggle" data-manual-toggle="html" type="button">Readable view</button>';
     echo '</div>';
-    echo '<div style="border:1px solid rgba(148,163,184,.5);border-radius:10px;overflow:hidden;height:720px">';
-    echo '<iframe title="Documented Procedure Manual" src="'.$manual_view.'" style="width:100%;height:100%;border:0"></iframe>';
+    echo '<div class="be-qms-manual-viewer">';
+    echo '<div class="be-qms-manual-panel" data-manual-panel="pdf">';
+    echo '<iframe title="Documented Procedure Manual" src="'.$manual_pdf.'" style="width:100%;height:720px;border:0"></iframe>';
+    echo '</div>';
+    echo '<div class="be-qms-manual-panel be-qms-manual-html" data-manual-panel="html" data-manual-pdf="'.$manual_pdf.'" hidden>';
+    echo '<div class="be-qms-manual-status">Loading manual...</div>';
+    echo '</div>';
     echo '</div>';
     echo '</div>';
   }
@@ -5077,6 +5258,61 @@ JS;
     return home_url('/qms-portal/');
   }
 
+  private static function resolve_reference_file($key) {
+    $map = [
+      'manual_docx' => 'Documented-Procedure-Manual-Baltic-Appendices-Filled.docx',
+      'manual_pdf'  => 'Documented-Procedure-Manual-Baltic-Appendices-Filled.pdf',
+    ];
+    if (empty($map[$key])) {
+      return null;
+    }
+
+    $filename = $map[$key];
+    $plugin_path = plugin_dir_path(__FILE__) . $filename;
+    if (file_exists($plugin_path)) {
+      return [
+        'path' => $plugin_path,
+        'filename' => $filename,
+      ];
+    }
+
+    $uploads = wp_upload_dir();
+    if (!empty($uploads['basedir'])) {
+      $root_upload_path = trailingslashit($uploads['basedir']) . $filename;
+      if (file_exists($root_upload_path)) {
+        return [
+          'path' => $root_upload_path,
+          'filename' => $filename,
+        ];
+      }
+    }
+
+    $attachments = get_posts([
+      'post_type' => 'attachment',
+      'post_status' => 'inherit',
+      'posts_per_page' => 1,
+      'fields' => 'ids',
+      'meta_query' => [
+        [
+          'key' => '_wp_attached_file',
+          'value' => $filename,
+          'compare' => 'LIKE',
+        ],
+      ],
+    ]);
+    if (!empty($attachments[0])) {
+      $attached_path = get_attached_file((int) $attachments[0]);
+      if (!empty($attached_path) && file_exists($attached_path)) {
+        return [
+          'path' => $attached_path,
+          'filename' => basename($attached_path),
+        ];
+      }
+    }
+
+    return null;
+  }
+
   /* -------------------------------
    * Exports (DOC / Print) + bundled refs
    * ------------------------------*/
@@ -5085,17 +5321,19 @@ JS;
     if (!empty($_GET['be_qms_ref'])) {
       self::require_staff();
       $key = sanitize_key($_GET['be_qms_ref']);
-      $map = [
-        'manual_docx' => 'Documented-Procedure-Manual-Baltic-Appendices-Filled.docx',
-        'manual_pdf'  => 'Documented-Procedure-Manual-Baltic-Appendices-Filled.docx',
-      ];
-      if (empty($map[$key])) wp_die('Unknown reference file');
-      $file = plugin_dir_path(__FILE__) . $map[$key];
-      if (!file_exists($file)) wp_die('File missing');
-      $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+      $reference = self::resolve_reference_file($key);
+      if (!$reference) {
+        wp_die('File missing. Upload the file to your WordPress Media Library or place it alongside the plugin file.');
+      }
+      $file = $reference['path'];
+      $ext = strtolower(pathinfo($reference['filename'], PATHINFO_EXTENSION));
       $mime = ($ext === 'pdf') ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
       header('Content-Type: ' . $mime);
-      header('Content-Disposition: attachment; filename="' . basename($file) . '"');
+      if ($ext === 'pdf' && empty($_GET['download'])) {
+        header('Content-Disposition: inline; filename="' . $reference['filename'] . '"');
+      } else {
+        header('Content-Disposition: attachment; filename="' . $reference['filename'] . '"');
+      }
       header('Content-Length: ' . filesize($file));
       readfile($file);
       exit;
