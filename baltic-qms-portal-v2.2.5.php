@@ -349,6 +349,20 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!htmlPanel) return;
   const pdfPanel = document.querySelector('[data-manual-panel="pdf"]');
   const toggles = document.querySelectorAll('[data-manual-toggle]');
+  const pdfScriptSources = [
+    {
+      script: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js',
+      worker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js',
+    },
+    {
+      script: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.js',
+      worker: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.worker.min.js',
+    },
+    {
+      script: 'https://unpkg.com/pdfjs-dist@4.0.379/build/pdf.min.js',
+      worker: 'https://unpkg.com/pdfjs-dist@4.0.379/build/pdf.worker.min.js',
+    },
+  ];
 
   function setActivePanel(target) {
     toggles.forEach((toggle) => {
@@ -363,18 +377,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector(`script[src="${src}"]`);
+      if (existing) {
+        existing.addEventListener('load', resolve);
+        existing.addEventListener('error', reject);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  async function ensurePdfJsLoaded() {
+    if (window.pdfjsLib) return { loaded: true, workerSrc: null };
+    for (const source of pdfScriptSources) {
+      try {
+        await loadScript(source.script);
+      } catch (error) {
+        continue;
+      }
+      if (window.pdfjsLib) return { loaded: true, workerSrc: source.worker };
+    }
+    return { loaded: false, workerSrc: null };
+  }
+
   async function renderPdfToHtml(container) {
     if (container.dataset.loaded === 'true') return;
     const status = container.querySelector('.be-qms-manual-status');
     const pdfUrl = container.dataset.manualPdf;
+    const pdfLoadResult = await ensurePdfJsLoaded();
     const pdfjsLib = window.pdfjsLib;
-    if (!pdfjsLib || !pdfUrl) {
-      if (status) status.textContent = 'Unable to load PDF renderer.';
+    if (!pdfLoadResult.loaded || !pdfjsLib || !pdfUrl) {
+      if (status) {
+        status.textContent = 'Unable to load PDF renderer. Please allow the PDF.js CDN or contact support.';
+      }
       return;
     }
 
     pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js';
+      pdfLoadResult.workerSrc || 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js';
 
     if (status) status.textContent = 'Loading manual...';
 
