@@ -2090,6 +2090,9 @@ JS;
     $date_calibrated = $is_edit ? get_post_meta($id, '_be_qms_tool_date_calibrated', true) : '';
     $next_due = $is_edit ? get_post_meta($id, '_be_qms_tool_next_due', true) : '';
     $linked_project = $is_edit ? (int) get_post_meta($id, self::META_PROJECT_LINK, true) : 0;
+    if (!$is_edit && !$linked_project && !empty($_GET['project_id'])) {
+      $linked_project = (int) $_GET['project_id'];
+    }
 
     $existing_att_ids = $is_edit ? get_post_meta($id, '_be_qms_attachments', true) : [];
     if (!is_array($existing_att_ids)) $existing_att_ids = [];
@@ -2935,6 +2938,9 @@ JS;
     $battery_model = $is_edit ? get_post_meta($id, '_be_qms_r03_battery_model', true) : '';
     $other_equipment = $is_edit ? get_post_meta($id, '_be_qms_r03_other_equipment', true) : '';
     $linked_project = $is_edit ? (int) get_post_meta($id, self::META_PROJECT_LINK, true) : 0;
+    if (!$is_edit && !$linked_project && !empty($_GET['project_id'])) {
+      $linked_project = (int) $_GET['project_id'];
+    }
     $is_template = $is_edit ? get_post_meta($id, '_be_qms_r03_is_template', true) : '';
     $is_template_edit = $is_edit && $is_template;
     $template_name = '';
@@ -5484,18 +5490,37 @@ JS;
     $files = $_FILES[$field];
     $att_ids = [];
 
-    $count = is_array($files['name']) ? count($files['name']) : 0;
-    if ($count < 1) return [];
+    if (is_array($files['name'])) {
+      $count = count($files['name']);
+      if ($count < 1) return [];
 
-    for ($i=0; $i<$count; $i++) {
-      if (empty($files['name'][$i])) continue;
+      for ($i=0; $i<$count; $i++) {
+        if (empty($files['name'][$i])) continue;
 
+        $file_array = [
+          'name' => $files['name'][$i],
+          'type' => $files['type'][$i],
+          'tmp_name' => $files['tmp_name'][$i],
+          'error' => $files['error'][$i],
+          'size' => $files['size'][$i],
+        ];
+
+        $tmp = $_FILES;
+        $_FILES = [$field => $file_array];
+        $att_id = media_handle_upload($field, 0);
+        $_FILES = $tmp;
+
+        if (!is_wp_error($att_id)) {
+          $att_ids[] = (int)$att_id;
+        }
+      }
+    } else {
       $file_array = [
-        'name' => $files['name'][$i],
-        'type' => $files['type'][$i],
-        'tmp_name' => $files['tmp_name'][$i],
-        'error' => $files['error'][$i],
-        'size' => $files['size'][$i],
+        'name' => $files['name'],
+        'type' => $files['type'],
+        'tmp_name' => $files['tmp_name'],
+        'error' => $files['error'],
+        'size' => $files['size'],
       ];
 
       $tmp = $_FILES;
