@@ -157,6 +157,9 @@ class BE_QMS_Portal {
 }
 .be-qms-tab:hover{ background:rgba(15,23,42,.65); border-color:var(--qms-border2); transform: translateY(-1px); }
 .be-qms-tab.is-active{ background:rgba(16,185,129,.14); border-color:rgba(52,211,153,.55); box-shadow:0 0 0 4px rgba(16,185,129,.12); }
+.be-qms-subnav{ margin-top:6px; margin-bottom:18px; }
+.be-qms-subnav .be-qms-tab{ font-size:12px; padding:8px 12px; }
+.be-qms-ref-panel[hidden]{ display:none; }
 
 .be-qms-row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 
@@ -332,6 +335,27 @@ jQuery(function($){
 
   toggleProjectSubcontractor();
   $(document).on('change', '[name="project_has_subcontractor"]', toggleProjectSubcontractor);
+
+  function setReferencePanel(target) {
+    var $tabs = $('[data-ref-tab]');
+    var $panels = $('[data-ref-panel]');
+    if (!$tabs.length || !$panels.length) return;
+    $tabs.each(function(){
+      var $tab = $(this);
+      $tab.toggleClass('is-active', $tab.data('refTab') === target);
+    });
+    $panels.each(function(){
+      var $panel = $(this);
+      $panel.prop('hidden', $panel.data('refPanel') !== target);
+    });
+  }
+
+  $(document).on('click', '[data-ref-tab]', function(event){
+    event.preventDefault();
+    setReferencePanel($(this).data('refTab'));
+  });
+
+  setReferencePanel('standards');
 });
 JS;
     wp_add_inline_script('jquery-ui-datepicker', $js);
@@ -792,6 +816,19 @@ JS;
     echo '<h3>References & QMS framework</h3>';
     echo '<p class="be-qms-muted">Keep your profile up to date, then store evidence as Records (R01-R11) and link items to Projects where relevant.</p>';
 
+    $reference_tabs = [
+      'standards' => 'Standards',
+      'register' => 'Document Register',
+      'profile' => 'Company Profile',
+    ];
+    echo '<div class="be-qms-nav be-qms-subnav" role="tablist" aria-label="Reference sections">';
+    foreach ($reference_tabs as $key => $label) {
+      $is_active = ($key === 'standards') ? ' is-active' : '';
+      echo '<button class="be-qms-tab'.$is_active.'" type="button" data-ref-tab="'.esc_attr($key).'">'.esc_html($label).'</button>';
+    }
+    echo '</div>';
+
+    echo '<div class="be-qms-ref-panel" data-ref-panel="standards">';
     echo '<div class="be-qms-grid">';
     echo '<div class="be-qms-col-12">';
     echo '<h4 style="margin-top:0">Standards &amp; checklists</h4>';
@@ -813,6 +850,21 @@ JS;
     echo '</div>';
 
     echo '<hr style="margin:18px 0;border:0;border-top:1px solid rgba(30,41,59,.75)">';
+    echo '<h4>MCS evidence map (quick)</h4>';
+    echo '<table class="be-qms-table">';
+    echo '<thead><tr><th>Requirement area</th><th>Where you evidence it in the portal</th></tr></thead><tbody>';
+    echo '<tr><td>Internal review</td><td>Records → R05 Internal Review Record</td></tr>';
+    echo '<tr><td>Contract review</td><td>Records → R01 Contracts Folder (use a record per job/contract)</td></tr>';
+    echo '<tr><td>Goods-in checks</td><td>Records → R03 Purchase Order (link to a Project if it relates to one)</td></tr>';
+    echo '<tr><td>Complaints handling</td><td>Records → R06 Customer Complaints (link to Project if applicable)</td></tr>';
+    echo '<tr><td>Corrective / preventive action</td><td>Records → R02 CAPA (link to Project if applicable)</td></tr>';
+    echo '<tr><td>Training / competence</td><td>Records → R07 Training Matrix</td></tr>';
+    echo '<tr><td>Tools / calibration</td><td>Records → R04 Tool Calibration</td></tr>';
+    echo '<tr><td>Assessment project file</td><td>Projects → evidence uploads + linked records</td></tr>';
+    echo '</tbody></table>';
+    echo '</div>';
+
+    echo '<div class="be-qms-ref-panel" data-ref-panel="register" hidden>';
     echo '<div class="be-qms-grid">';
     echo '<div class="be-qms-col-6">';
     echo '<h4 style="margin-top:0">Document register guidance</h4>';
@@ -838,9 +890,10 @@ JS;
     echo '</ul>';
     echo '</div>';
     echo '</div>';
+    echo '</div>';
 
     $save_url = esc_url(admin_url('admin-post.php'));
-    echo '<hr style="margin:18px 0;border:0;border-top:1px solid rgba(30,41,59,.75)">';
+    echo '<div class="be-qms-ref-panel" data-ref-panel="profile" hidden>';
     echo '<h4>Company profile (used for consistency)</h4>';
     echo '<form method="post" action="'.$save_url.'" class="be-qms-grid">';
     echo '<input type="hidden" name="action" value="be_qms_save_profile">';
@@ -870,20 +923,7 @@ JS;
     echo '<button class="be-qms-btn" type="submit">Save profile</button>';
     echo '</div>';
     echo '</form>';
-
-    echo '<hr style="margin:18px 0;border:0;border-top:1px solid rgba(30,41,59,.75)">';
-    echo '<h4>MCS evidence map (quick)</h4>';
-    echo '<table class="be-qms-table">';
-    echo '<thead><tr><th>Requirement area</th><th>Where you evidence it in the portal</th></tr></thead><tbody>';
-    echo '<tr><td>Internal review</td><td>Records → R05 Internal Review Record</td></tr>';
-    echo '<tr><td>Contract review</td><td>Records → R01 Contracts Folder (use a record per job/contract)</td></tr>';
-    echo '<tr><td>Goods-in checks</td><td>Records → R03 Purchase Order (link to a Project if it relates to one)</td></tr>';
-    echo '<tr><td>Complaints handling</td><td>Records → R06 Customer Complaints (link to Project if applicable)</td></tr>';
-    echo '<tr><td>Corrective / preventive action</td><td>Records → R02 CAPA (link to Project if applicable)</td></tr>';
-    echo '<tr><td>Training / competence</td><td>Records → R07 Training Matrix</td></tr>';
-    echo '<tr><td>Tools / calibration</td><td>Records → R04 Tool Calibration</td></tr>';
-    echo '<tr><td>Assessment project file</td><td>Projects → evidence uploads + linked records</td></tr>';
-    echo '</tbody></table>';
+    echo '</div>';
 
     echo '</div>';
   }
