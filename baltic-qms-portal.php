@@ -192,6 +192,10 @@ class BE_QMS_Portal {
 .be-qms-link{ color:var(--qms-emerald2); text-decoration:none; font-weight:700; }
 .be-qms-link:hover{ text-decoration:underline; }
 
+.be-qms-divider{ margin:18px 0; border:0; border-top:1px solid rgba(30,41,59,.75); }
+.be-qms-divider.is-mid{ margin:12px 0; }
+.be-qms-divider.is-tight{ margin:8px 0; }
+
 .be-qms-table{ width:100%; border-collapse:collapse; margin-top:10px; font-size:13px; }
 .be-qms-table th, .be-qms-table td{ padding:10px 10px; border-top:1px solid rgba(30,41,59,.75); vertical-align:top; }
 .be-qms-table th{ color:#f8fafc; font-weight:800; font-size:12px; letter-spacing:.02em; text-transform:uppercase; }
@@ -222,6 +226,86 @@ class BE_QMS_Portal {
 .be-qms-col-6{ grid-column:span 6; }
 .be-qms-col-12{ grid-column:span 12; }
 @media(max-width:900px){ .be-qms-col-6{ grid-column:span 12; } }
+
+.be-qms-subnav{ display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 16px 0; }
+.be-qms-subtab{
+  display:inline-flex;
+  align-items:center;
+  padding:8px 12px;
+  border-radius:999px;
+  border:1px solid var(--qms-border);
+  background:rgba(2,6,23,.35);
+  color:var(--qms-text);
+  text-decoration:none;
+  font-weight:700;
+  font-size:12px;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.be-qms-subtab:hover{ background:rgba(15,23,42,.65); border-color:var(--qms-border2); transform: translateY(-1px); }
+.be-qms-subtab.is-active{ background:rgba(16,185,129,.14); border-color:rgba(52,211,153,.55); box-shadow:0 0 0 3px rgba(16,185,129,.12); }
+
+.be-qms-card-grid{ display:grid; grid-template-columns:repeat(12,1fr); gap:12px; margin-top:12px; }
+.be-qms-card-grid .be-qms-card{ margin:0; padding:14px; }
+.be-qms-card-grid .be-qms-card h5{ margin:0 0 6px 0; }
+.be-qms-card-grid .be-qms-card .be-qms-muted{ font-size:12px; }
+.be-qms-card-grid .be-qms-card{ grid-column:span 4; }
+@media(max-width:1000px){ .be-qms-card-grid .be-qms-card{ grid-column:span 6; } }
+@media(max-width:700px){ .be-qms-card-grid .be-qms-card{ grid-column:span 12; } }
+
+.be-qms-badge{
+  display:inline-flex;
+  align-items:center;
+  padding:4px 8px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.03em;
+  border:1px solid rgba(148,163,184,.45);
+  background:rgba(2,6,23,.45);
+  color:var(--qms-text);
+}
+.be-qms-badge.is-pdf{ border-color:rgba(251,191,36,.5); color:#fde68a; }
+.be-qms-badge.is-web{ border-color:rgba(52,211,153,.5); color:var(--qms-emerald2); }
+
+.be-qms-tile-grid{ display:grid; grid-template-columns:repeat(12,1fr); gap:10px; margin:10px 0 16px 0; }
+.be-qms-tile{
+  grid-column:span 3;
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid var(--qms-border);
+  background:rgba(2,6,23,.35);
+  text-decoration:none;
+  color:var(--qms-text);
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.be-qms-tile:hover{ border-color:var(--qms-border2); transform: translateY(-1px); }
+.be-qms-tile.is-active{ border-color:rgba(52,211,153,.55); box-shadow:0 0 0 3px rgba(16,185,129,.12); }
+.be-qms-tile strong{ font-size:15px; }
+.be-qms-tile span{ color:var(--qms-muted); font-size:12px; }
+@media(max-width:1000px){ .be-qms-tile{ grid-column:span 4; } }
+@media(max-width:800px){ .be-qms-tile{ grid-column:span 6; } }
+@media(max-width:600px){ .be-qms-tile{ grid-column:span 12; } }
+
+.be-qms-alert{
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid rgba(52,211,153,.45);
+  background:rgba(16,185,129,.12);
+  color:var(--qms-emerald2);
+  font-weight:700;
+  margin:10px 0 16px 0;
+}
+
+.be-qms-mini-card{
+  border:1px solid var(--qms-border);
+  border-radius:16px;
+  padding:12px;
+  background:rgba(2,6,23,.35);
+}
+.be-qms-mini-card h5{ margin:0 0 10px 0; }
 
 /* Records layout */
 .be-qms-split{ display:grid; grid-template-columns:260px 1fr; gap:14px; }
@@ -766,11 +850,27 @@ JS;
         'url' => 'https://mcscertified.com/wp-content/uploads/2025/02/MIS-3012_Battery-Storage-Systems-V1.0.pdf',
         'group' => 'MCS',
       ],
+      [
+        'title' => 'DNO G98/G99',
+        'url' => 'https://www.energynetworks.org/publications/g98-g99',
+        'group' => 'Other',
+      ],
+      [
+        'title' => 'BS 7671 (IET Wiring Regulations)',
+        'url' => 'https://www.theiet.org/bs-7671/',
+        'group' => 'Other',
+      ],
+      [
+        'title' => 'Building Regulations Approved Documents',
+        'url' => 'https://www.gov.uk/government/collections/approved-documents',
+        'group' => 'Other',
+      ],
     ];
     $accessed_docs = [
       [
         'title' => 'Planning Portal Approved Documents',
         'url' => 'http://www.planningportal.gov.uk/buildingregulations/approveddocuments/',
+        'group' => 'Accessed Docs',
       ],
     ];
 
@@ -788,102 +888,261 @@ JS;
     ];
     $profile = array_merge($defaults, $profile);
 
+    $ref_tab = isset($_GET['ref_tab']) ? sanitize_key($_GET['ref_tab']) : 'standards';
+    $allowed_tabs = ['standards', 'register', 'company'];
+    if (!in_array($ref_tab, $allowed_tabs, true)) {
+      $ref_tab = 'standards';
+    }
+
+    $portal_url = self::portal_url();
+    $standards_url = esc_url(add_query_arg(['view' => 'references', 'ref_tab' => 'standards'], $portal_url));
+    $register_url = esc_url(add_query_arg(['view' => 'references', 'ref_tab' => 'register'], $portal_url));
+    $company_url = esc_url(add_query_arg(['view' => 'references', 'ref_tab' => 'company'], $portal_url));
+    $r11_url = esc_url(add_query_arg(['view' => 'records', 'type' => 'r11_company_documents'], $portal_url));
+    $r11_add_url = esc_url(add_query_arg(['view' => 'records', 'type' => 'r11_company_documents', 'be_action' => 'new'], $portal_url));
+
     echo '<div class="be-qms-card-inner">';
     echo '<h3>References & QMS framework</h3>';
     echo '<p class="be-qms-muted">Keep your profile up to date, then store evidence as Records (R01-R11) and link items to Projects where relevant.</p>';
 
-    echo '<div class="be-qms-grid">';
-    echo '<div class="be-qms-col-12">';
-    echo '<h4 style="margin-top:0">Standards &amp; checklists</h4>';
-    echo '<div class="be-qms-muted">Primary references for NAPIT, EAS, and MCS.</div>';
-    $grouped_docs = [];
-    foreach ($external_docs as $doc) {
-      $group = $doc['group'] ?? 'Other';
-      $grouped_docs[$group][] = $doc;
-    }
-    foreach ($grouped_docs as $group => $docs) {
-      echo '<h5 style="margin:10px 0 6px 0">'.esc_html($group).'</h5>';
-      echo '<ul>';
-      foreach ($docs as $doc) {
-        echo '<li><a class="be-qms-link" target="_blank" href="'.esc_url($doc['url']).'">'.esc_html($doc['title']).'</a></li>';
+    echo '<div class="be-qms-row" style="margin-top:10px">';
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$r11_url.'">Open R11 Document Register</a>';
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$r11_add_url.'">Add New Company Document</a>';
+    echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$company_url.'">Edit Company Profile</a>';
+    echo '</div>';
+
+    echo '<div class="be-qms-subnav">';
+    echo '<a class="be-qms-subtab '.($ref_tab === 'standards' ? 'is-active' : '').'" href="'.$standards_url.'">Standards</a>';
+    echo '<a class="be-qms-subtab '.($ref_tab === 'register' ? 'is-active' : '').'" href="'.$register_url.'">Document Register</a>';
+    echo '<a class="be-qms-subtab '.($ref_tab === 'company' ? 'is-active' : '').'" href="'.$company_url.'">Company Profile</a>';
+    echo '</div>';
+
+    if ($ref_tab === 'standards') {
+      echo '<div class="be-qms-grid">';
+      echo '<div class="be-qms-col-12">';
+      echo '<h4 style="margin-top:0">Standards &amp; checklists</h4>';
+      echo '<div class="be-qms-muted">Primary references for NAPIT, EAS, and MCS.</div>';
+
+      $grouped_docs = [];
+      foreach (array_merge($external_docs, $accessed_docs) as $doc) {
+        $group = $doc['group'] ?? 'Other';
+        $grouped_docs[$group][] = $doc;
       }
-      echo '</ul>';
-    }
-    echo '</div>';
-    echo '</div>';
 
-    echo '<hr style="margin:18px 0;border:0;border-top:1px solid rgba(30,41,59,.75)">';
-    echo '<div class="be-qms-grid">';
-    echo '<div class="be-qms-col-6">';
-    echo '<h4 style="margin-top:0">Document register guidance</h4>';
-    echo '<p class="be-qms-muted">Use these tabs to keep control of internal and external documents.</p>';
-    echo '<table class="be-qms-table">';
-    echo '<thead><tr><th>Tab</th><th>Purpose</th></tr></thead><tbody>';
-    echo '<tr><td>External Docs</td><td>Documents held externally (not produced by the company).</td></tr>';
-    echo '<tr><td>Accessed Docs</td><td>Information accessed online but not held by the company.</td></tr>';
-    echo '<tr><td>Live Company Docs</td><td>Company-controlled procedures and standard forms.</td></tr>';
-    echo '<tr><td>Old Company Docs</td><td>Superseded company documents no longer in use.</td></tr>';
-    echo '<tr><td>Software</td><td>Software used for generating critical data.</td></tr>';
-    echo '<tr><td>Data Storage</td><td>Where company-generated data is stored.</td></tr>';
-    echo '<tr><td>Backup Info</td><td>Backup frequency and backup locations.</td></tr>';
-    echo '</tbody></table>';
-    echo '</div>';
-    echo '<div class="be-qms-col-6">';
-    echo '<h4 style="margin-top:0">Accessed documents</h4>';
-    echo '<p class="be-qms-muted">Online references you consult but do not store internally.</p>';
-    echo '<ul>';
-    foreach ($accessed_docs as $doc) {
-      echo '<li><a class="be-qms-link" target="_blank" href="'.esc_url($doc['url']).'">'.esc_html($doc['title']).'</a></li>';
-    }
-    echo '</ul>';
-    echo '</div>';
-    echo '</div>';
+      foreach ($grouped_docs as $group => $docs) {
+        echo '<h5 style="margin:14px 0 6px 0">'.esc_html($group).'</h5>';
+        echo '<div class="be-qms-card-grid">';
+        foreach ($docs as $doc) {
+          $url = esc_url($doc['url']);
+          $title = esc_html($doc['title']);
+          $badge = (stripos($url, '.pdf') !== false) ? 'PDF' : 'Web';
+          $badge_class = ($badge === 'PDF') ? 'is-pdf' : 'is-web';
 
-    $save_url = esc_url(admin_url('admin-post.php'));
-    echo '<hr style="margin:18px 0;border:0;border-top:1px solid rgba(30,41,59,.75)">';
-    echo '<h4>Company profile (used for consistency)</h4>';
-    echo '<form method="post" action="'.$save_url.'" class="be-qms-grid">';
-    echo '<input type="hidden" name="action" value="be_qms_save_profile">';
-    echo '<input type="hidden" name="_wpnonce" value="'.esc_attr(wp_create_nonce('be_qms_profile')).'">';
-
-    $fields = [
-      ['company_name','Company name'],
-      ['responsible_person','Responsible person'],
-      ['address','Address'],
-      ['phone','Phone'],
-      ['email','Email'],
-      ['company_reg','Company reg no.'],
-      ['mcs_reg','MCS reg no.'],
-      ['consumer_code','Consumer code (e.g. HIES/RECC)'],
-    ];
-
-    foreach ($fields as $f) {
-      [$key,$label] = $f;
-      $val = $profile[$key] ?? '';
-      echo '<div class="be-qms-col-6">';
-      echo '<label style="display:block;font-size:12px" class="be-qms-muted">'.esc_html($label).'</label>';
-      echo '<input class="be-qms-input" name="'.$key.'" value="'.esc_attr($val).'" />';
+          echo '<div class="be-qms-card">';
+          echo '<div class="be-qms-row" style="justify-content:space-between;align-items:flex-start;">';
+          echo '<h5>'.$title.'</h5>';
+          echo '<span class="be-qms-badge '.$badge_class.'">'.$badge.'</span>';
+          echo '</div>';
+          echo '<div class="be-qms-row" style="margin-top:10px">';
+          echo '<a class="be-qms-btn be-qms-btn-secondary" target="_blank" rel="noopener" href="'.$url.'">Open</a>';
+          echo '<a class="be-qms-btn be-qms-btn-secondary" href="'.$url.'" download>Download</a>';
+          echo '</div>';
+          echo '</div>';
+        }
+        echo '</div>';
+      }
       echo '</div>';
+      echo '</div>';
+
+      echo '<hr class="be-qms-divider">';
+      echo '<h4>MCS evidence map (quick)</h4>';
+      echo '<table class="be-qms-table">';
+      echo '<thead><tr><th>Requirement area</th><th>Where you evidence it in the portal</th></tr></thead><tbody>';
+      echo '<tr><td>Internal review</td><td>Records → R05 Internal Review Record</td></tr>';
+      echo '<tr><td>Contract review</td><td>Records → R01 Contracts Folder (use a record per job/contract)</td></tr>';
+      echo '<tr><td>Goods-in checks</td><td>Records → R03 Purchase Order (link to a Project if it relates to one)</td></tr>';
+      echo '<tr><td>Complaints handling</td><td>Records → R06 Customer Complaints (link to Project if applicable)</td></tr>';
+      echo '<tr><td>Corrective / preventive action</td><td>Records → R02 CAPA (link to Project if applicable)</td></tr>';
+      echo '<tr><td>Training / competence</td><td>Records → R07 Training Matrix</td></tr>';
+      echo '<tr><td>Tools / calibration</td><td>Records → R04 Tool Calibration</td></tr>';
+      echo '<tr><td>Assessment project file</td><td>Projects → evidence uploads + linked records</td></tr>';
+      echo '</tbody></table>';
     }
 
-    echo '<div class="be-qms-col-12 be-qms-row" style="margin-top:10px">';
-    echo '<button class="be-qms-btn" type="submit">Save profile</button>';
-    echo '</div>';
-    echo '</form>';
+    if ($ref_tab === 'register') {
+      $docs = self::query_r11_company_documents();
+      $categories = [
+        'External Docs',
+        'Accessed Docs',
+        'Live Company Docs',
+        'Old Company Docs',
+        'Software',
+        'Data Storage',
+        'Backup Info',
+      ];
 
-    echo '<hr style="margin:18px 0;border:0;border-top:1px solid rgba(30,41,59,.75)">';
-    echo '<h4>MCS evidence map (quick)</h4>';
-    echo '<table class="be-qms-table">';
-    echo '<thead><tr><th>Requirement area</th><th>Where you evidence it in the portal</th></tr></thead><tbody>';
-    echo '<tr><td>Internal review</td><td>Records → R05 Internal Review Record</td></tr>';
-    echo '<tr><td>Contract review</td><td>Records → R01 Contracts Folder (use a record per job/contract)</td></tr>';
-    echo '<tr><td>Goods-in checks</td><td>Records → R03 Purchase Order (link to a Project if it relates to one)</td></tr>';
-    echo '<tr><td>Complaints handling</td><td>Records → R06 Customer Complaints (link to Project if applicable)</td></tr>';
-    echo '<tr><td>Corrective / preventive action</td><td>Records → R02 CAPA (link to Project if applicable)</td></tr>';
-    echo '<tr><td>Training / competence</td><td>Records → R07 Training Matrix</td></tr>';
-    echo '<tr><td>Tools / calibration</td><td>Records → R04 Tool Calibration</td></tr>';
-    echo '<tr><td>Assessment project file</td><td>Projects → evidence uploads + linked records</td></tr>';
-    echo '</tbody></table>';
+      $doc_rows = [];
+      $category_counts = array_fill_keys($categories, 0);
+      foreach ($docs as $doc) {
+        $rid = (int) $doc->ID;
+        $title = get_post_meta($rid, '_be_qms_r11_doc_title', true) ?: $doc->post_title;
+        $category = get_post_meta($rid, '_be_qms_r11_category', true) ?: 'External Docs';
+        $reference = get_post_meta($rid, '_be_qms_r11_reference', true);
+        $version = get_post_meta($rid, '_be_qms_r11_version', true);
+        $owner = get_post_meta($rid, '_be_qms_r11_owner', true);
+        $review_date = get_post_meta($rid, '_be_qms_r11_review_date', true);
+        $status = get_post_meta($rid, '_be_qms_r11_status', true);
+        $link = get_post_meta($rid, '_be_qms_r11_link', true);
+
+        if (!array_key_exists($category, $category_counts)) {
+          $category_counts[$category] = 0;
+        }
+        $category_counts[$category]++;
+
+        $doc_rows[] = [
+          'title' => $title,
+          'category' => $category,
+          'reference' => $reference,
+          'version' => $version,
+          'owner' => $owner,
+          'review_date' => $review_date,
+          'status' => $status,
+          'link' => $link,
+        ];
+      }
+
+      $search = isset($_GET['q']) ? sanitize_text_field($_GET['q']) : '';
+      $selected_category = isset($_GET['doc_category']) ? sanitize_text_field($_GET['doc_category']) : '';
+
+      $filtered_rows = array_filter($doc_rows, function ($row) use ($search, $selected_category) {
+        if ($selected_category && $selected_category !== 'all' && $row['category'] !== $selected_category) {
+          return false;
+        }
+        if ($search) {
+          $haystack = strtolower(implode(' ', [$row['title'], $row['reference'], $row['owner'], $row['status']]));
+          return (strpos($haystack, strtolower($search)) !== false);
+        }
+        return true;
+      });
+
+      echo '<h4 style="margin-top:0">Document register</h4>';
+      echo '<p class="be-qms-muted">This panel is backed by your R11 Company Documents records.</p>';
+
+      echo '<div class="be-qms-tile-grid">';
+      foreach ($categories as $category) {
+        $count = $category_counts[$category] ?? 0;
+        $tile_url = esc_url(add_query_arg([
+          'view' => 'references',
+          'ref_tab' => 'register',
+          'doc_category' => $category,
+        ], $portal_url));
+        $active_class = ($selected_category === $category) ? 'is-active' : '';
+        echo '<a class="be-qms-tile '.$active_class.'" href="'.$tile_url.'">';
+        echo '<strong>'.esc_html($category).'</strong>';
+        echo '<span>'.$count.' documents</span>';
+        echo '</a>';
+      }
+      echo '</div>';
+
+      echo '<form method="get" action="'.esc_url($portal_url).'" class="be-qms-row" style="margin-bottom:12px">';
+      echo '<input type="hidden" name="view" value="references">';
+      echo '<input type="hidden" name="ref_tab" value="register">';
+      echo '<input class="be-qms-input" style="max-width:260px" type="search" name="q" placeholder="Search documents" value="'.esc_attr($search).'">';
+      echo '<select class="be-qms-select" name="doc_category" style="max-width:220px">';
+      echo '<option value="all">All categories</option>';
+      foreach ($categories as $category) {
+        $selected = ($selected_category === $category) ? 'selected' : '';
+        echo '<option value="'.esc_attr($category).'" '.$selected.'>'.esc_html($category).'</option>';
+      }
+      echo '</select>';
+      echo '<button class="be-qms-btn be-qms-btn-secondary" type="submit">Filter</button>';
+      echo '</form>';
+
+      echo '<table class="be-qms-table">';
+      echo '<thead><tr><th>Title</th><th>Ref</th><th>Version</th><th>Owner</th><th>Review Date</th><th>Status</th><th>Link</th></tr></thead><tbody>';
+      if (!$filtered_rows) {
+        echo '<tr><td colspan="7" class="be-qms-muted">No documents match the current filters.</td></tr>';
+      } else {
+        foreach ($filtered_rows as $row) {
+          $display_review = $row['review_date'] ? self::format_date_for_display($row['review_date']) : '—';
+          $link = $row['link'] ? '<a class="be-qms-link" target="_blank" rel="noopener" href="'.esc_url($row['link']).'">Open</a>' : '—';
+          echo '<tr>';
+          echo '<td>'.esc_html($row['title'] ?: '—').'</td>';
+          echo '<td>'.esc_html($row['reference'] ?: '—').'</td>';
+          echo '<td>'.esc_html($row['version'] ?: '—').'</td>';
+          echo '<td>'.esc_html($row['owner'] ?: '—').'</td>';
+          echo '<td>'.esc_html($display_review).'</td>';
+          echo '<td>'.esc_html($row['status'] ?: '—').'</td>';
+          echo '<td>'.$link.'</td>';
+          echo '</tr>';
+        }
+      }
+      echo '</tbody></table>';
+    }
+
+    if ($ref_tab === 'company') {
+      $save_url = esc_url(admin_url('admin-post.php'));
+      $saved = isset($_GET['saved']) && $_GET['saved'] === '1';
+      echo '<h4 style="margin-top:0">Company profile</h4>';
+      echo '<p class="be-qms-muted">Keep these details aligned for documents and assessments.</p>';
+      if ($saved) {
+        echo '<div class="be-qms-alert">Saved. Your company profile has been updated.</div>';
+      }
+      echo '<form method="post" action="'.$save_url.'">';
+      echo '<input type="hidden" name="action" value="be_qms_save_profile">';
+      echo '<input type="hidden" name="_wpnonce" value="'.esc_attr(wp_create_nonce('be_qms_profile')).'">';
+
+      echo '<div class="be-qms-grid">';
+      echo '<div class="be-qms-col-6">';
+      echo '<div class="be-qms-mini-card">';
+      echo '<h5>Company details</h5>';
+      echo '<div class="be-qms-grid">';
+      $company_fields = [
+        ['company_name','Company name'],
+        ['company_reg','Company reg no.'],
+        ['responsible_person','Responsible person'],
+        ['address','Address'],
+        ['phone','Phone'],
+        ['email','Email'],
+      ];
+      foreach ($company_fields as $f) {
+        [$key,$label] = $f;
+        $val = $profile[$key] ?? '';
+        echo '<div class="be-qms-col-12">';
+        echo '<label style="display:block;font-size:12px" class="be-qms-muted">'.esc_html($label).'</label>';
+        echo '<input class="be-qms-input" name="'.$key.'" value="'.esc_attr($val).'" />';
+        echo '</div>';
+      }
+      echo '</div>';
+      echo '</div>';
+      echo '</div>';
+
+      echo '<div class="be-qms-col-6">';
+      echo '<div class="be-qms-mini-card">';
+      echo '<h5>Scheme details</h5>';
+      echo '<div class="be-qms-grid">';
+      $scheme_fields = [
+        ['mcs_reg','MCS reg no.'],
+        ['consumer_code','Consumer code (e.g. HIES/RECC)'],
+      ];
+      foreach ($scheme_fields as $f) {
+        [$key,$label] = $f;
+        $val = $profile[$key] ?? '';
+        echo '<div class="be-qms-col-12">';
+        echo '<label style="display:block;font-size:12px" class="be-qms-muted">'.esc_html($label).'</label>';
+        echo '<input class="be-qms-input" name="'.$key.'" value="'.esc_attr($val).'" />';
+        echo '</div>';
+      }
+      echo '</div>';
+      echo '</div>';
+      echo '</div>';
+      echo '</div>';
+
+      echo '<div class="be-qms-row" style="margin-top:12px">';
+      echo '<button class="be-qms-btn" type="submit">Save profile</button>';
+      echo '</div>';
+      echo '</form>';
+    }
 
     echo '</div>';
   }
@@ -1467,7 +1726,7 @@ JS;
     echo '<div class="be-qms-col-6"><label><strong>Mobile</strong><br/>';
     echo '<input class="be-qms-input" type="text" name="contact_mobile" value="'.esc_attr($contact_mobile).'" /></label></div>';
 
-    echo '<div class="be-qms-col-12"><hr style="margin:8px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-tight"></div>';
 
     echo '<div class="be-qms-col-12"><label><strong>Nature of Complaint</strong><br/>';
     echo '<input class="be-qms-input" type="text" name="nature" value="'.esc_attr($nature).'" /></label></div>';
@@ -1475,12 +1734,12 @@ JS;
     echo '<div class="be-qms-col-12"><label><strong>Outcome</strong><br/>';
     echo '<input class="be-qms-input" type="text" name="outcome" value="'.esc_attr($outcome).'" /></label></div>';
 
-    echo '<div class="be-qms-col-12"><hr style="margin:8px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-tight"></div>';
 
     echo '<div class="be-qms-col-12"><label><strong>Immediate Action Requested by Customer</strong><br/>';
     echo '<textarea class="be-qms-textarea" name="immediate_action">'.esc_textarea($immediate_action).'</textarea></label></div>';
 
-    echo '<div class="be-qms-col-12"><hr style="margin:8px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-tight"></div>';
 
     $contacted_yes = ($contacted_within_day === 'yes') ? 'checked' : '';
     $contacted_no = ($contacted_within_day === 'no') ? 'checked' : '';
@@ -1493,7 +1752,7 @@ JS;
     echo '<div class="be-qms-col-12"><label><strong>If not, why not?</strong><br/>';
     echo '<textarea class="be-qms-textarea" name="contacted_reason">'.esc_textarea($contacted_reason).'</textarea></label></div>';
 
-    echo '<div class="be-qms-col-12"><hr style="margin:8px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-tight"></div>';
 
     echo '<div class="be-qms-col-12"><label><strong>Actions taken to resolve complaint</strong><br/>';
     echo '<textarea class="be-qms-textarea" name="actions_taken">'.esc_textarea($actions_taken).'</textarea></label></div>';
@@ -1501,7 +1760,7 @@ JS;
     echo '<div class="be-qms-col-12"><label><strong>Further Action Required</strong><br/>';
     echo '<textarea class="be-qms-textarea" name="further_action">'.esc_textarea($further_action).'</textarea></label></div>';
 
-    echo '<div class="be-qms-col-12"><hr style="margin:8px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-tight"></div>';
 
     $satisfied_yes = ($customer_satisfied === 'yes') ? 'checked' : '';
     $satisfied_no = ($customer_satisfied === 'no') ? 'checked' : '';
@@ -1511,7 +1770,7 @@ JS;
     echo '<label><input type="radio" name="customer_satisfied" value="no" '.$satisfied_no.'> No</label>';
     echo '</div></div>';
 
-    echo '<div class="be-qms-col-12"><hr style="margin:8px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-tight"></div>';
 
     echo '<div class="be-qms-col-6"><label><strong>Reported By</strong><br/>';
     echo '<input class="be-qms-input" type="text" name="reported_by" value="'.esc_attr($reported_by).'" /></label></div>';
@@ -1523,7 +1782,7 @@ JS;
     echo '<input class="be-qms-input" type="text" name="reported_title" value="'.esc_attr($reported_title).'" /></label></div>';
     echo '<div class="be-qms-col-6"></div>';
 
-    echo '<div class="be-qms-col-12"><hr style="margin:8px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-tight"></div>';
 
     echo '<div class="be-qms-col-12"><label><strong>Linked project</strong> <span class="be-qms-muted">(optional)</span><br/>';
     echo '<select class="be-qms-select" name="project_id">';
@@ -1642,20 +1901,20 @@ JS;
     echo '<div class="be-qms-col-6"><strong>E-mail</strong><br/>'.esc_html($contact_email).'</div>';
     echo '<div class="be-qms-col-6"><strong>Telephone</strong><br/>'.esc_html($contact_phone).'</div>';
     echo '<div class="be-qms-col-6"><strong>Mobile</strong><br/>'.esc_html($contact_mobile).'</div>';
-    echo '<div class="be-qms-col-12"><hr style="margin:12px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-mid"></div>';
     echo '<div class="be-qms-col-12"><strong>Nature of Complaint</strong><br/>'.esc_html($nature).'</div>';
     echo '<div class="be-qms-col-12"><strong>Outcome</strong><br/>'.esc_html($outcome).'</div>';
-    echo '<div class="be-qms-col-12"><hr style="margin:12px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-mid"></div>';
     echo '<div class="be-qms-col-12"><strong>Immediate Action Requested by Customer</strong><br/>'.wpautop(esc_html($immediate_action)).'</div>';
-    echo '<div class="be-qms-col-12"><hr style="margin:12px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-mid"></div>';
     echo '<div class="be-qms-col-12"><strong>Customer contacted within 1 working day?</strong><br/>'.esc_html($contacted_within_day ? ucfirst($contacted_within_day) : '—').'</div>';
     echo '<div class="be-qms-col-12"><strong>If not, why not?</strong><br/>'.wpautop(esc_html($contacted_reason)).'</div>';
-    echo '<div class="be-qms-col-12"><hr style="margin:12px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-mid"></div>';
     echo '<div class="be-qms-col-12"><strong>Actions taken to resolve complaint</strong><br/>'.wpautop(esc_html($actions_taken)).'</div>';
     echo '<div class="be-qms-col-12"><strong>Further Action Required</strong><br/>'.wpautop(esc_html($further_action)).'</div>';
-    echo '<div class="be-qms-col-12"><hr style="margin:12px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-mid"></div>';
     echo '<div class="be-qms-col-12"><strong>Is Customer satisfied with result?</strong><br/>'.esc_html($customer_satisfied ? ucfirst($customer_satisfied) : '—').'</div>';
-    echo '<div class="be-qms-col-12"><hr style="margin:12px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-mid"></div>';
     echo '<div class="be-qms-col-6"><strong>Reported By</strong><br/>'.esc_html($reported_by).'</div>';
     echo '<div class="be-qms-col-6"><strong>Date Closed</strong><br/>'.esc_html(self::format_date_for_display($date_closed)).'</div>';
     echo '<div class="be-qms-col-6"><strong>Title</strong><br/>'.esc_html($reported_title).'</div>';
@@ -1831,6 +2090,9 @@ JS;
     $date_calibrated = $is_edit ? get_post_meta($id, '_be_qms_tool_date_calibrated', true) : '';
     $next_due = $is_edit ? get_post_meta($id, '_be_qms_tool_next_due', true) : '';
     $linked_project = $is_edit ? (int) get_post_meta($id, self::META_PROJECT_LINK, true) : 0;
+    if (!$is_edit && !$linked_project && !empty($_GET['project_id'])) {
+      $linked_project = (int) $_GET['project_id'];
+    }
 
     $existing_att_ids = $is_edit ? get_post_meta($id, '_be_qms_attachments', true) : [];
     if (!is_array($existing_att_ids)) $existing_att_ids = [];
@@ -2676,6 +2938,9 @@ JS;
     $battery_model = $is_edit ? get_post_meta($id, '_be_qms_r03_battery_model', true) : '';
     $other_equipment = $is_edit ? get_post_meta($id, '_be_qms_r03_other_equipment', true) : '';
     $linked_project = $is_edit ? (int) get_post_meta($id, self::META_PROJECT_LINK, true) : 0;
+    if (!$is_edit && !$linked_project && !empty($_GET['project_id'])) {
+      $linked_project = (int) $_GET['project_id'];
+    }
     $is_template = $is_edit ? get_post_meta($id, '_be_qms_r03_is_template', true) : '';
     $is_template_edit = $is_edit && $is_template;
     $template_name = '';
@@ -2786,7 +3051,7 @@ JS;
     echo '<div class="be-qms-col-6"><label><strong>Date Raised</strong><br/>';
     echo '<input class="be-qms-input be-qms-date" type="text" name="r03_date_raised" value="'.esc_attr(self::format_date_for_display($date_raised)).'" placeholder="DD/MM/YYYY" /></label></div>';
 
-    echo '<div class="be-qms-col-12"><hr style="margin:8px 0;border:0;border-top:1px solid rgba(30,41,59,.75)"></div>';
+    echo '<div class="be-qms-col-12"><hr class="be-qms-divider is-tight"></div>';
     echo '<div class="be-qms-col-12"><strong>Equipment list</strong></div>';
 
     echo '<div class="be-qms-col-6"><label><strong>Inverter model</strong><br/>';
@@ -5168,7 +5433,7 @@ JS;
     ];
     update_option('be_qms_profile', $profile, false);
 
-    $url = add_query_arg(['view'=>'references','saved'=>'1'], self::portal_url());
+    $url = add_query_arg(['view'=>'references','ref_tab'=>'company','saved'=>'1'], self::portal_url());
     wp_safe_redirect($url);
     exit;
   }
@@ -5225,18 +5490,37 @@ JS;
     $files = $_FILES[$field];
     $att_ids = [];
 
-    $count = is_array($files['name']) ? count($files['name']) : 0;
-    if ($count < 1) return [];
+    if (is_array($files['name'])) {
+      $count = count($files['name']);
+      if ($count < 1) return [];
 
-    for ($i=0; $i<$count; $i++) {
-      if (empty($files['name'][$i])) continue;
+      for ($i=0; $i<$count; $i++) {
+        if (empty($files['name'][$i])) continue;
 
+        $file_array = [
+          'name' => $files['name'][$i],
+          'type' => $files['type'][$i],
+          'tmp_name' => $files['tmp_name'][$i],
+          'error' => $files['error'][$i],
+          'size' => $files['size'][$i],
+        ];
+
+        $tmp = $_FILES;
+        $_FILES = [$field => $file_array];
+        $att_id = media_handle_upload($field, 0);
+        $_FILES = $tmp;
+
+        if (!is_wp_error($att_id)) {
+          $att_ids[] = (int)$att_id;
+        }
+      }
+    } else {
       $file_array = [
-        'name' => $files['name'][$i],
-        'type' => $files['type'][$i],
-        'tmp_name' => $files['tmp_name'][$i],
-        'error' => $files['error'][$i],
-        'size' => $files['size'][$i],
+        'name' => $files['name'],
+        'type' => $files['type'],
+        'tmp_name' => $files['tmp_name'],
+        'error' => $files['error'],
+        'size' => $files['size'],
       ];
 
       $tmp = $_FILES;
