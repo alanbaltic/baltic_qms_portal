@@ -223,6 +223,41 @@ class BE_QMS_Portal {
 .be-qms-col-12{ grid-column:span 12; }
 @media(max-width:900px){ .be-qms-col-6{ grid-column:span 12; } }
 
+.be-qms-standards-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:12px;
+  margin:8px 0 14px;
+}
+.be-qms-standards-card{
+  background:rgba(2,6,23,.35);
+  border:1px solid var(--qms-border);
+  border-radius:14px;
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.be-qms-standards-title{ font-weight:800; color:#f8fafc; }
+.be-qms-standards-badge{
+  align-self:flex-start;
+  font-size:11px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  padding:4px 8px;
+  border-radius:999px;
+  border:1px solid rgba(148,163,184,.35);
+  background:rgba(15,23,42,.6);
+  color:var(--qms-muted);
+}
+.be-qms-standards-badge.is-pdf{
+  background:rgba(16,185,129,.18);
+  border-color:rgba(52,211,153,.45);
+  color:var(--qms-emerald2);
+}
+.be-qms-standards-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:auto; }
+
 /* Records layout */
 .be-qms-split{ display:grid; grid-template-columns:260px 1fr; gap:14px; }
 @media(max-width:900px){ .be-qms-split{ grid-template-columns:1fr; } }
@@ -803,11 +838,22 @@ JS;
     }
     foreach ($grouped_docs as $group => $docs) {
       echo '<h5 style="margin:10px 0 6px 0">'.esc_html($group).'</h5>';
-      echo '<ul>';
+      echo '<div class="be-qms-standards-grid">';
       foreach ($docs as $doc) {
-        echo '<li><a class="be-qms-link" target="_blank" href="'.esc_url($doc['url']).'">'.esc_html($doc['title']).'</a></li>';
+        $url = $doc['url'];
+        $is_pdf = preg_match('/\.pdf(\?|#|$)/i', $url);
+        $badge_class = $is_pdf ? 'be-qms-standards-badge is-pdf' : 'be-qms-standards-badge';
+        $badge_label = $is_pdf ? 'PDF' : 'Web';
+        echo '<div class="be-qms-standards-card">';
+        echo '<div class="be-qms-standards-title">'.esc_html($doc['title']).'</div>';
+        echo '<span class="'.esc_attr($badge_class).'">'.esc_html($badge_label).'</span>';
+        echo '<div class="be-qms-standards-actions">';
+        echo '<a class="be-qms-btn" target="_blank" href="'.esc_url($url).'">Open</a>';
+        echo '<a class="be-qms-btn be-qms-btn-secondary" target="_blank" href="'.esc_url($url).'">Download</a>';
+        echo '</div>';
+        echo '</div>';
       }
-      echo '</ul>';
+      echo '</div>';
     }
     echo '</div>';
     echo '</div>';
